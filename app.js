@@ -227,6 +227,41 @@ function applyDesc() {
   el.style.opacity = 0;
   setTimeout(() => { el.innerHTML = descs[MODE]; el.style.opacity = 1; }, 120);
 }
+// ── кэш результатов по режимам (держится до перезагрузки страницы) ──
+const RES_KEY = 'endfield_results';
+function loadResultsCache() {
+  try { return JSON.parse(sessionStorage.getItem(RES_KEY) || '{}'); } catch (e) { return {}; }
+}
+function saveResult(mode, html) {
+  const c = loadResultsCache();
+  c[mode] = html;
+  try { sessionStorage.setItem(RES_KEY, JSON.stringify(c)); } catch (e) {}
+}
+
+// перевешивает тултипы графиков на восстановленный DOM (слушатели в HTML не сохраняются)
+function rebindTips(container) {
+  const dist = container.querySelector('#distChart');
+  if (dist) attachRowTip(dist);
+  const histo = container.querySelector('#histo');
+  if (histo) { attachHistoTip(histo); }
+  const markers = container.querySelector('#histoMarkers');
+  if (markers) attachMarkerTip(markers);
+}
+
+// восстанавливает сохранённый результат режима без анимаций (финальное состояние сразу)
+function restoreResult(mode) {
+  const res = document.getElementById('results');
+  const resInner = document.getElementById('resultsInner');
+  const html = loadResultsCache()[mode];
+  if (!html) { res.classList.remove('open', 'shown', 'no-anim'); resInner.innerHTML = ''; return; }
+  res.classList.add('no-anim');     // подавляем transition на время вставки
+  resInner.innerHTML = html;        // уже полностью отрисованный HTML (с финальными стилями)
+  rebindTips(resInner);
+  res.classList.add('open', 'shown'); // показать сразу раскрытым, без раскрывающей анимации
+  // снимаем no-anim следующим кадром, чтобы будущие изменения снова анимировались
+  requestAnimationFrame(() => requestAnimationFrame(() => res.classList.remove('no-anim')));
+}
+
 // устанавливает режим симулятора (одна крутка / монте / reverse)
 function setMode(mode) {
   MODE = mode;
@@ -240,8 +275,8 @@ function setMode(mode) {
   document.getElementById('ctrlPulls').style.display = mode === 'reverse' ? 'none' : '';
   document.getElementById('ctrlPrizeMode').style.display = isPrizes ? '' : 'none';
   document.getElementById('ctrlMaxed').style.display = isPrizes ? '' : 'none';
-  document.getElementById('results').classList.remove('open');
-  setTimeout(() => { document.getElementById('resultsInner').innerHTML = ''; }, 200);
+  // восстанавливаем сохранённый результат этого режима (или прячем, если его нет)
+  restoreResult(mode);
   applyDesc();
   // синхронизируем активный пункт сайдбара
   document.querySelectorAll('.sb-item').forEach(i => {
@@ -259,6 +294,8 @@ document.querySelectorAll('.sb-item').forEach(item => {
 // инициализация видимости и описания
 document.getElementById('ctrlTrials').style.display = 'none';
 document.getElementById('modeDescText').innerHTML = descs.detailed;
+// восстановить сохранённый результат стартового режима (если есть в сессии)
+restoreResult(MODE);
 
 // ── запуск ──
 const runBtn = document.getElementById('runBtn');
@@ -273,7 +310,7 @@ runBtn.addEventListener('click', () => {
 
   const res = document.getElementById('results');
   const resInner = document.getElementById('resultsInner');
-  res.classList.remove('open', 'shown');  // схлопываем прошлый результат
+  res.classList.remove('open', 'shown', 'no-anim');  // схлопываем прошлый результат
   setTimeout(() => { resInner.innerHTML = ''; }, 200);
 
   const simbar = document.getElementById('simbar');
@@ -318,6 +355,10 @@ runBtn.addEventListener('click', () => {
           }
         });
         html.after && html.after();
+        // сохраняем результат в сессию ПОСЛЕ завершения анимаций (финальные стили в DOM).
+        // запас на анимацию чисел (900мс) + лесенку столбцов гистограммы (i*14мс)
+        const cols = resInner.querySelectorAll('.hb, .hb-col').length;
+        setTimeout(() => saveResult(MODE, resInner.innerHTML), Math.max(1400, cols * 14 + 600));
       }, 350);
     });
   }, 500);
@@ -437,10 +478,10 @@ function renderDetailed(r, p) {
   const html = `
     <div class="res-head">↘ РЕЗУЛЬТАТ ОДНОЙ КРУТКИ <span class="rh-tech">// ${p.pulls} ПУЛЛОВ</span></div>
     <div class="stat-grid">
-      ${statCard('КОПИЙ 6★ RATE-UP', r.copies, {})}
-      ${statCard('ЖЕТОНОВ', r.tokens, {})}
-      ${statCard('ПОТЕНЦИАЛ', 0, { textTo: consTxt })}
-      ${statCard('ПИТИ НА ВЫХОДЕ', r.pityOut, {})}
+      ${statCard('КОПИЙ 6★ RATE-UP', r.copies, { info: 'Сколько раз за этот заход выпал именно rate-up оператор (новый + дубликаты + гарант). Каждая копия сверх первой даёт жетон.' })}
+      ${statCard('ЖЕТОНОВ', r.tokens, { info: 'Жетоны потенциала rate-up оператора: за дубликаты (со 2-й копии) и за каждый 240-й пулл. Нужны для прокачки E1–E5.' })}
+      ${statCard('ПОТЕНЦИАЛ', 0, { textTo: consTxt, info: 'Итоговая фаза потенциала на конец захода. E0 — одна копия, E5 — максимум (5 жетонов сверху).' })}
+      ${statCard('ПИТИ НА ВЫХОДЕ', r.pityOut, { info: 'Сколько пуллов без 6★ накоплено к концу захода. Софт-пити растит шанс после 65, хард-гарант 6★ на 80-м. Счётчик переносится на следующий баннер.' })}
     </div>
     <div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div>
     <div class="evlog">${rows}</div>`;
@@ -462,11 +503,11 @@ function renderMonte(r, p) {
   const html = `
     <div class="res-head">↘ МОНТЕ-КАРЛО <span class="rh-tech">// ${p.pulls} ПУЛЛОВ × ${r.trials.toLocaleString('ru')} ПРОГОНОВ</span></div>
     <div class="stat-grid">
-      ${statCard('ШАНС ≥ E0', r.pE0*100, { decimals: 2, suffix: '%' })}
-      ${statCard('СРЕД. КОПИЙ', r.avgCopies, { decimals: 2 })}
-      ${statCard('СРЕД. ЖЕТОНОВ', r.avgTokens, { decimals: 2 })}
+      ${statCard('ШАНС ≥ E0', r.pE0*100, { decimals: 2, suffix: '%', info: 'Доля прогонов, где выпала хотя бы одна копия rate-up оператора. Это вероятность «получить его вообще» за указанное число пуллов.' })}
+      ${statCard('СРЕД. КОПИЙ', r.avgCopies, { decimals: 2, info: 'Среднее число копий rate-up оператора по всем прогонам. Может быть дробным: усреднение, а не один заход.' })}
+      ${statCard('СРЕД. ЖЕТОНОВ', r.avgTokens, { decimals: 2, info: 'Среднее число жетонов потенциала за заход (дубликаты + жетоны за 240). Косвенно показывает, до какого E в среднем добираешься.' })}
     </div>
-    <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ ПОТЕНЦИАЛА</div>
+    <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ ПОТЕНЦИАЛА<span class="info" tabindex="0" data-info="Какая доля прогонов закончилась на каждой фазе E0–E5 (и сколько вообще не взяли 6★). Наведись на строку — точный процент. Показывает не «сколько в среднем», а весь разброс исходов.">?</span></div>
     <div class="dist" id="distChart">${bars}</div>`;
   return { html, after: () => { animateStatCards(); animateDist(); attachRowTip(document.getElementById('distChart')); } };
 }
@@ -476,12 +517,12 @@ function renderReverse(r, p) {
   const html = `
     <div class="res-head">↘ СКОЛЬКО ПУЛЛОВ ДО E${p.target} <span class="rh-tech">// ${r.trials.toLocaleString('ru')} ПРОГОНОВ</span></div>
     <div class="stat-grid four">
-      ${statCard('СРЕДНЕЕ', r.mean, { decimals: 1, big: true })}
-      ${statCard('МЕДИАНА', r.median, {})}
-      ${statCard('ВЕЗУЧИЕ 10%', r.best10, {})}
-      ${statCard('НЕВЕЗУЧИЕ 10%', r.worst10, {})}
+      ${statCard('СРЕДНЕЕ', r.mean, { decimals: 1, big: true, info: 'Среднее число пуллов до цели по всем прогонам. Удобно для общей прикидки, но «хвост» невезения тянет его вверх — медиана честнее.' })}
+      ${statCard('МЕДИАНА', r.median, { info: 'Половина игроков закроет цель быстрее этого числа, половина — медленнее. Самый честный ориентир «по середине».' })}
+      ${statCard('ВЕЗУЧИЕ 10%', r.best10, { info: 'Граница удачи: 10% самых везучих прогонов уложились в это число пуллов или меньше.' })}
+      ${statCard('НЕВЕЗУЧИЕ 10%', r.worst10, { info: 'Граница невезения: 10% самых неудачных прогонов потратили это число пуллов или больше. Закладывайся на этот случай.' })}
     </div>
-    <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ (гистограмма)</div>
+    <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ (гистограмма)<span class="info" tabindex="0" data-info="Сколько прогонов закрыли цель за то или иное число пуллов. Высокий столбец — частый исход. Метки Г/Ж1/Ж2 снизу — гарант и гарантированные жетоны, на них видны пики «дозревания». Дуги сверху — суммарный % в участке.">?</span></div>
     <div class="histo-wrap">
       <div class="histo-arcs" id="histoArcs"></div>
       <div class="histo" id="histo"></div>
@@ -506,11 +547,11 @@ function renderPrizes(r, p, single) {
   const sub = single ? `// ОДИН ПРОКРУТ · ${p.pulls} ПУЛЛОВ`
                      : `// ${p.pulls} ПУЛЛОВ × ${r.trials.toLocaleString('ru')} ПРОГОНОВ · СРЕДНЕЕ`;
 
-  const prizeCard = (icon, label, value, hint) => `
+  const prizeCard = (icon, label, value, hint, info) => `
     <div class="prize-card">
       <img src="icons/${icon}" class="pz-ic">
       <div class="pz-body">
-        <div class="pz-label">${label}</div>
+        <div class="pz-label">${label}${info ? ` <span class="info" tabindex="0" data-info="${info.replace(/"/g, '&quot;')}">?</span>` : ''}</div>
         <div class="pz-val" data-anim='${JSON.stringify({ value, decimals: dec })}'>0</div>
         <div class="pz-hint">${hint}</div>
       </div>
@@ -557,18 +598,18 @@ function renderPrizes(r, p, single) {
   const html = `
     <div class="res-head">↘ ПОДСЧЁТ ПРИЗОВ <span class="rh-tech">${sub}</span></div>
     <div class="prize-grid four">
-      ${prizeCard('Bond_Quota.png', 'БАЗОВЫЕ ТАЛОНЫ', base, 'за копии 6★/5★')}
-      ${prizeCard('AIC_Quota.png', 'ТАЛОНЫ АПК', aic, 'за лишние жетоны 5★/4★')}
-      ${prizeCard('Endpoint_Quota.png', 'ПРЕМИУМ-ТАЛОНЫ', prem, 'за лишние жетоны 6★')}
-      ${prizeCard('Arsenal_Ticket.png', 'БИЛЕТЫ АРСЕНАЛА', arsenal, '2000/200/20 за 6★/5★/4★')}
+      ${prizeCard('Bond_Quota.png', 'БАЗОВЫЕ ТАЛОНЫ', base, 'за копии 6★/5★', 'Капают за дубликаты операторов: копия 6★ → 50 талонов, копия 5★ → 10. Жетоны за 240 тоже считаются полноценной копией. 25 базовых талонов = 1 пулл.')}
+      ${prizeCard('AIC_Quota.png', 'ТАЛОНЫ АПК', aic, 'за лишние жетоны 5★/4★', 'Обмен ЛИШНИХ жетонов (сверх макс. потенциала): жетон 5★ → 20 АПК, жетон 4★ → 5 АПК. У 4★ потенциал копится быстро, так что лишних жетонов много.')}
+      ${prizeCard('Endpoint_Quota.png', 'ПРЕМИУМ-ТАЛОНЫ', prem, 'за лишние жетоны 6★', 'Премиум-валюта за обмен лишних жетонов 6★ (сверх E5): 1 жетон → 10 премиум-талонов. Капает только если 6★ уже вымакшен.')}
+      ${prizeCard('Arsenal_Ticket.png', 'БИЛЕТЫ АРСЕНАЛА', arsenal, '2000/200/20 за 6★/5★/4★', 'Капают за КАЖДОЕ выпадение оператора без условий: 6★ → 2000, 5★ → 200, 4★ → 20. Тратятся на оружие в обменнике арсенала.')}
     </div>
-    <div class="res-head sub">↘ ВЫПАЛО ПО РЕДКОСТИ</div>
+    <div class="res-head sub">↘ ВЫПАЛО ПО РЕДКОСТИ<span class="info" tabindex="0" data-info="Сколько операторов каждой редкости выпало за заход (включая бесплатные пуллы). Базовые шансы: 6★ 0.8%, 5★ 8%, 4★ 91.2%, плюс гаранты редкости.">?</span></div>
     <div class="stat-grid">
       ${statCard(rar(6), c6, { decimals: dec })}
       ${statCard(rar(5), c5, { decimals: dec })}
       ${statCard(rar(4), c4, { decimals: dec })}
     </div>
-    <div class="res-head sub">↘ 6★ ПОИМЁННО</div>
+    <div class="res-head sub">↘ 6★ ПОИМЁННО<span class="info" tabindex="0" data-info="Разбивка выпавших 6★ по операторам. Первый — текущий rate-up (50% всех 6★), остальные — прошлые rate-up и стандартный пул (делят оставшиеся 50% поровну). Имена обезличены, чтобы не зависеть от баннера.">?</span></div>
     <div class="op-table">${opRows}</div>
     ${logHtml}
     <div class="res-note">// ${p.maxed ? 'стандартные операторы вымакшены — все копии в талоны' : 'первая копия каждого оператора = он сам, дальше в талоны'}</div>`;
@@ -590,8 +631,10 @@ function renderPrizes(r, p, single) {
 /* ── вспомогательные ── */
 function statCard(label, value, opts) {
   const id = 'sc' + Math.random().toString(36).slice(2, 8);
-  const data = JSON.stringify({ value, ...opts });
-  return `<div class="stat-card"><div class="sc-label">${label}</div>
+  const { info, ...rest } = opts;
+  const data = JSON.stringify({ value, ...rest });
+  const badge = info ? ` <span class="info" tabindex="0" data-info="${info.replace(/"/g, '&quot;')}">?</span>` : '';
+  return `<div class="stat-card"><div class="sc-label">${label}${badge}</div>
     <div class="sc-value" id="${id}" data-anim='${data}'>0</div>
     <div class="sc-line"></div></div>`;
 }
@@ -787,6 +830,58 @@ function attachRowTip(host) {
   });
   host.addEventListener('mouseleave', () => tip.classList.remove('show'));
 }
+
+// ── инфо-значки (?) рядом с лейблами: тултип по наведению / тапу ──
+(function infoTips() {
+  // СВОЙ элемент тултипа, не общий с графиками (#histoTip) — чтобы их mousemove его не перетирал
+  const tip = document.createElement('div');
+  tip.id = 'infoTip';
+  tip.className = 'histo-tip info-tip';
+  document.body.appendChild(tip);
+  let pinned = null; // активный по тапу значок (мобайл)
+
+  const show = (el) => {
+    tip.textContent = el.dataset.info;
+    // позиционируем ещё невидимым, потом показываем (без мелькания)
+    const r = el.getBoundingClientRect();
+    placeTip(tip, r.left + r.width / 2, r.top);
+    tip.classList.add('show');
+  };
+  const hideInfo = () => tip.classList.remove('show');
+  const hide = () => { hideInfo(); pinned = null; };
+
+  // hover (десктоп)
+  document.addEventListener('mouseover', e => {
+    const el = e.target.closest('.info');
+    if (el) show(el);
+  });
+  document.addEventListener('mouseout', e => {
+    if (e.target.closest('.info') && !pinned) hideInfo();
+  });
+
+  // tap / click (мобайл + клавиатура): toggle, не даём всплыть к закрытию дропдаунов
+  document.addEventListener('click', e => {
+    const el = e.target.closest('.info');
+    if (el) {
+      e.stopPropagation();
+      e.preventDefault();
+      if (pinned === el) { hide(); }
+      else { pinned = el; show(el); }
+    } else if (pinned) {
+      hide();
+    }
+  });
+  // фокус с клавиатуры
+  document.addEventListener('focusin', e => {
+    if (e.target.classList && e.target.classList.contains('info')) show(e.target);
+  });
+  document.addEventListener('focusout', e => {
+    if (e.target.classList && e.target.classList.contains('info') && !pinned) hideInfo();
+  });
+  // прячем инфо-тултип при скролле/ресайзе (позиция привязана к элементу)
+  window.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+})();
 
 // инициализация улучшенных полей (DOM уже готов — скрипт в конце body)
 enhanceNumberInputs();

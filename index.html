@@ -127,7 +127,7 @@
         <!-- режим: одна крутка -->
         <div class="ctrl-row">
           <div class="ctrl" id="ctrlPulls">
-            <label>// ЧИСЛО ПУЛЛОВ</label>
+            <label>// ЧИСЛО ПУЛЛОВ<span class="info" tabindex="0" data-info="Сколько платных пуллов крутим за один заход на баннер. Бесплатная десятка (после 30 платных) добавляется сверх этого числа автоматически.">?</span></label>
             <div class="pulls-field">
               <input type="number" id="inPulls" value="120" min="1" max="2000">
               <button class="mine-btn" id="useMineBtn" title="Подставить пуллы, посчитанные в калькуляторе">
@@ -136,11 +136,11 @@
             </div>
           </div>
           <div class="ctrl" id="ctrlTrials">
-            <label>// ПРОГОНОВ</label>
+            <label>// ПРОГОНОВ<span class="info" tabindex="0" data-info="Сколько раз повторить заход для усреднения. Каждый прогон — отдельная случайная симуляция; чем больше прогонов, тем точнее средние и проценты, но дольше счёт. Хватает 20–50 тысяч.">?</span></label>
             <input type="number" id="inTrials" value="20000" min="1000" max="300000" step="1000">
           </div>
           <div class="ctrl" id="ctrlTarget" style="display:none">
-            <label>// ЦЕЛЬ</label>
+            <label>// ЦЕЛЬ<span class="info" tabindex="0" data-info="До какого потенциала оператора копим. E0 — просто первая копия, E1–E5 — дополнительные жетоны (дубликаты). E5 это максимум. Движок ищет, сколько пуллов в среднем нужно, чтобы закрыть эту цель.">?</span></label>
             <input type="hidden" id="inTarget" value="0">
             <div class="dropdown" data-for="inTarget">
               <button type="button" class="dd-trigger"><span class="dd-label">E0 — Чистый оперативник</span><span class="dd-caret">▾</span></button>
@@ -155,7 +155,7 @@
             </div>
           </div>
           <div class="ctrl" id="ctrlPrizeMode" style="display:none">
-            <label>// РЕЖИМ</label>
+            <label>// РЕЖИМ<span class="info" tabindex="0" data-info="«Один прокрут» — играем заход ровно раз и показываем что выпало именно в нём (с логом). «Монте-Карло» — усредняем по тысячам прокрутов, цифры дробные и стабильные.">?</span></label>
             <input type="hidden" id="inPrizeMode" value="monte">
             <div class="dropdown" data-for="inPrizeMode">
               <button type="button" class="dd-trigger"><span class="dd-label">Монте-Карло (среднее)</span><span class="dd-caret">▾</span></button>
@@ -172,6 +172,7 @@
           <input type="checkbox" id="inMaxed">
           <span class="mt-box"></span>
           <span class="mt-text">Стандартные операторы уже вымакшены <b>(каждое выпадение → талоны)</b></span>
+          <span class="info" tabindex="0" data-info="Если стандартные (не rate-up) операторы у тебя уже на максе E5 — каждое их выпадение сразу идёт в базовые талоны. Если галка снята, первая копия каждого считается самим оператором, и в талоны идут только дубликаты.">?</span>
         </label>
 
         <button id="runBtn" class="run-btn">
@@ -215,25 +216,25 @@
 
             <!-- 1. ПУЛЛЫ ЗА ВХОД -->
             <div class="calc-block">
-              <div class="cb-head"><img src="icons/Basic_HH_Permit.png" class="cb-ic"><div><div class="cb-title">ПУЛЛЫ ЗА ВХОД</div><div class="cb-sub">// до 5 за 3 дня (2/2/1)</div></div><div class="cb-out" id="outLogin">0 <span>пуллов</span></div></div>
+              <div class="cb-head"><img src="icons/Basic_HH_Permit.png" class="cb-ic"><div><div class="cb-title">ПУЛЛЫ ЗА ВХОД<span class="info" tabindex="0" data-info="Бонусные пуллы за вход в игру в дни баннера: 2 + 2 + 1 за первые три дня, до 5 штук. Отметь те дни, в которые уже заходил (или зайдёшь).">?</span></div><div class="cb-sub">// до 5 за 3 дня (2/2/1)</div></div><div class="cb-out" id="outLogin">0 <span>пуллов</span></div></div>
               <div class="toggles" id="loginToggles"></div>
             </div>
 
             <!-- 2. ТАЛОНЫ АПК -->
             <div class="calc-block">
-              <div class="cb-head"><img src="icons/AIC_Quota.png" class="cb-ic"><div><div class="cb-title">ТАЛОНЫ АПК</div><div class="cb-sub">// до 5 пуллов</div></div><div class="cb-out" id="outApc">0 <span>пуллов</span></div></div>
+              <div class="cb-head"><img src="icons/AIC_Quota.png" class="cb-ic"><div><div class="cb-title">ТАЛОНЫ АПК<span class="info" tabindex="0" data-info="Талоны АПК (AIC Quota) обмениваются на пуллы в магазине — до 5 пуллов. Укажи, сколько пуллов готов взять за них.">?</span></div><div class="cb-sub">// до 5 пуллов</div></div><div class="cb-out" id="outApc">0 <span>пуллов</span></div></div>
               <div class="slider" data-target="apc" data-min="0" data-max="5" data-val="0" data-unit="пуллов"></div>
             </div>
 
             <!-- 3. БАЗОВЫЕ ТАЛОНЫ -->
             <div class="calc-block">
-              <div class="cb-head"><img src="icons/Bond_Quota.png" class="cb-ic"><div><div class="cb-title">БАЗОВЫЕ ТАЛОНЫ</div><div class="cb-sub">// 25 талонов = 1 пулл</div></div><div class="cb-out" id="outBase">0 <span>пуллов</span></div></div>
+              <div class="cb-head"><img src="icons/Bond_Quota.png" class="cb-ic"><div><div class="cb-title">БАЗОВЫЕ ТАЛОНЫ<span class="info" tabindex="0" data-info="Базовые талоны (Bond Quota) капают за дубликаты операторов. Курс обмена: 25 талонов = 1 пулл. Введи, сколько их у тебя накоплено.">?</span></div><div class="cb-sub">// 25 талонов = 1 пулл</div></div><div class="cb-out" id="outBase">0 <span>пуллов</span></div></div>
               <div class="df-col single"><label><img src="icons/Bond_Quota.png" class="df-ic">БАЗОВЫЕ ТАЛОНЫ</label><input type="number" id="inBase" value="0" min="0" placeholder="кол-во талонов" class="calc-num wide"></div>
             </div>
 
             <!-- 4. ОРОБЕРИЛ + ОРИДЖЕМЕТРИЙ -->
             <div class="calc-block">
-              <div class="cb-head"><img src="icons/Oroberyl.png" class="cb-ic"><div><div class="cb-title">ОРОБЕРИЛ / ОРИДЖЕМЕТРИЙ</div><div class="cb-sub">// 500 оро = 1 пулл · 1 ориджи = 75 оро</div></div><div class="cb-out" id="outOro">0 <span>пуллов</span></div></div>
+              <div class="cb-head"><img src="icons/Oroberyl.png" class="cb-ic"><div><div class="cb-title">ОРОБЕРИЛ / ОРИДЖЕМЕТРИЙ<span class="info" tabindex="0" data-info="Основная валюта пуллов. 500 ороберила = 1 пулл. Ориджеметрий — премиум-валюта, 1 ориджи = 75 ороберила, конвертируется автоматически и суммируется с обычным.">?</span></div><div class="cb-sub">// 500 оро = 1 пулл · 1 ориджи = 75 оро</div></div><div class="cb-out" id="outOro">0 <span>пуллов</span></div></div>
               <div class="dual-field">
                 <div class="df-col"><label><img src="icons/Oroberyl.png" class="df-ic">ОРОБЕРИЛ</label><input type="number" id="inOro" value="0" min="0" placeholder="0" class="calc-num wide"></div>
                 <div class="df-col"><label><img src="icons/Origeometry.png" class="df-ic">ОРИДЖЕМЕТРИЙ</label><input type="number" id="inOrig" value="0" min="0" placeholder="0" class="calc-num wide"><div class="df-conv" id="outOrig">= 0 ороберила</div></div>
@@ -242,10 +243,13 @@
 
           </div>
 
-          <!-- 6. ДОНАТЫ -->
-          <div class="calc-block">
-            <div class="cb-head"><img src="icons/Origeometry.png" class="cb-ic"><div><div class="cb-title">ДОНАТЫ</div><div class="cb-sub">// удвоение — раз на пакет, обычных — сколько угодно</div></div></div>
-            <div class="donate-grid" id="donateGrid"></div>
+          <!-- 5. ДОНАТЫ (сворачиваемый, по умолчанию скрыт) -->
+          <div class="calc-block donate-block collapsed" id="donateBlock">
+            <div class="cb-head donate-head" id="donateToggle" role="button" tabindex="0">
+              <img src="icons/Origeometry.png" class="cb-ic"><div><div class="cb-title">ДОНАТЫ<span class="info" tabindex="0" data-info="Платные пакеты ориджеметрия. У каждого пакета бонус первой покупки (удвоение) учитывается только один раз — отметь, если уже брал его. Обычные покупки без бонуса можно добавлять сколько угодно. Протокол потока — 1 раз за баннер. Чекаут внизу считает реальные деньги.">?</span></div><div class="cb-sub">// удвоение — раз на пакет, обычных — сколько угодно</div></div>
+              <span class="donate-caret">▾</span>
+            </div>
+            <div class="donate-collapse"><div class="donate-grid" id="donateGrid"></div></div>
           </div>
 
           <!-- ИТОГ -->
@@ -266,7 +270,7 @@
               <div class="co-inner">
                 <div class="co-tag">// CHECKOUT · РЕАЛЬНЫЕ ДЕНЬГИ</div>
                 <div class="co-body">
-                  <div class="co-main"><span class="co-val" id="checkoutVal">€0.00</span><span class="co-per" id="checkoutPer"></span></div>
+                  <div class="co-main"><span class="co-val" id="checkoutVal">0 ₽</span><span class="co-per" id="checkoutPer"></span></div>
                   <div class="co-note">потрачено на донаты</div>
                 </div>
               </div>
