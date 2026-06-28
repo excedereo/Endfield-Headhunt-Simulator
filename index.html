@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ENDFIELD // СИМУЛЯТОР НАЙМА</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ПРЕЛОАДЕР -->
+<div id="preloader">
+  <canvas id="plMap" class="pl-map"></canvas>
+  <div class="pl-accent"></div>
+  <div class="pl-logo">
+    <div class="pl-logo-sub">ARKNIGHTS</div>
+    <div class="pl-logo-main">END<br>FIELD<span class="pl-logo-box"></span></div>
+  </div>
+  <div class="pl-progress">
+    <div class="pl-tick"></div>
+    <div class="pl-percent"><span id="plNum">0</span>%</div>
+    <div class="pl-status">▪▪ Updating<span class="pl-dots"></span></div>
+  </div>
+  <div class="pl-tech">
+    <div class="pl-tech-tri">▼</div>
+    <div class="pl-tech-txt">
+      <span class="pl-plus">+</span><br>
+      **HEADHUNTING SIMULATION ENGINE<br>SYSTEM INTERFACES
+      <div class="pl-tech-cells">▪▪▪▪▪▪</div>
+    </div>
+  </div>
+  <div class="pl-foot">OVER THE FRONTIER / INTO THE FRONT</div>
+</div>
+
+<!-- ОСНОВНОЙ САЙТ -->
+<div id="app" class="hidden">
+
+  <!-- САЙДБАР -->
+  <aside class="sidebar">
+    <div class="sb-logo">
+      <div class="sb-logo-sub">ARKNIGHTS</div>
+      <div class="sb-logo-main">END<br>FIELD<span class="sb-logo-box"></span></div>
+    </div>
+    <nav class="sb-nav">
+      <div class="sb-group">// СИМУЛЯТОР</div>
+      <a class="sb-item active" data-page="sim" data-mode="detailed"><span class="sb-ic">◈</span><span>Одна крутка</span></a>
+      <a class="sb-item" data-page="sim" data-mode="monte"><span class="sb-ic">▦</span><span>Монте-Карло</span></a>
+      <a class="sb-item" data-page="sim" data-mode="reverse"><span class="sb-ic">⟲</span><span>Сколько до цели</span></a>
+      <div class="sb-group">// РЕСУРСЫ</div>
+      <a class="sb-item" data-page="calc"><span class="sb-ic">◆</span><span>Сколько у меня пуллов</span></a>
+    </nav>
+    <div class="sb-bottom">
+      <div class="sb-rates">
+        <div class="sb-rate"><span>6★</span><b>0.8%</b></div>
+        <div class="sb-rate"><span>5★</span><b>8.0%</b></div>
+        <div class="sb-rate"><span>4★</span><b>91.2%</b></div>
+      </div>
+      <div class="sb-play">▼ ENGINE READY</div>
+    </div>
+  </aside>
+
+  <!-- КОНТЕНТ -->
+  <main class="content">
+    <!-- большой заголовок -->
+    <div class="hero">
+      <div class="hero-mark">//</div>
+      <h1 class="hero-title">ENDFIELD</h1>
+    </div>
+
+    <!-- ===== СТРАНИЦА: МЕНЮ СИМУЛЯТОРА (только мобайл) ===== -->
+    <div class="page hidden" id="page-simmenu">
+      <div class="section-head">
+        <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+        <div class="sh-en"><span class="sh-bar"></span>↘ HEADHUNTING SIM</div>
+        <h2 class="sh-ru">СИМУЛЯТОР НАЙМА</h2>
+      </div>
+      <div class="simmenu">
+        <button class="sm-card" data-go="detailed">
+          <div class="sm-ic">◈</div>
+          <div class="sm-body"><div class="sm-title">Одна крутка</div><div class="sm-sub">сыграть один заход, увидеть что выпало</div></div>
+          <div class="sm-arrow">↘</div>
+        </button>
+        <button class="sm-card" data-go="monte">
+          <div class="sm-ic">▦</div>
+          <div class="sm-body"><div class="sm-title">Монте-Карло</div><div class="sm-sub">тысячи прогонов, шанс и распределение</div></div>
+          <div class="sm-arrow">↘</div>
+        </button>
+        <button class="sm-card" data-go="reverse">
+          <div class="sm-ic">⟲</div>
+          <div class="sm-body"><div class="sm-title">Сколько до цели</div><div class="sm-sub">сколько пуллов до нужного потенциала</div></div>
+          <div class="sm-arrow">↘</div>
+        </button>
+      </div>
+    </div>
+
+    <!-- ===== СТРАНИЦА: СИМУЛЯТОР ===== -->
+    <div class="page" id="page-sim">
+    <div class="section-head">
+      <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+      <div class="sh-en"><span class="sh-bar"></span>↘ HEADHUNTING SIM</div>
+      <h2 class="sh-ru" id="modeTitle">СИМУЛЯТОР НАЙМА</h2>
+      <div class="sh-tech">**MISSION-DEPENDENT PAYLOAD / SYSTEM INTERFACES<div class="sh-cells">▪▪▪▪▪▪</div><div class="sh-cmyk"></div></div>
+    </div>
+
+    <!-- ПАНЕЛЬ УПРАВЛЕНИЯ -->
+    <div class="panel">
+      <!-- баннер сбоку -->
+      <div class="ybanner"><span>HEADHUNT</span><div class="ybanner-tech">▮▯ SIM CORE / MONTE-CARLO ENGINE</div></div>
+
+      <div class="panel-body">
+
+        <!-- описание текущего режима -->
+        <div class="mode-desc" id="modeDesc">
+          <div class="md-tag">// ОПИСАНИЕ</div>
+          <div class="md-text" id="modeDescText"></div>
+        </div>
+
+        <!-- режим: одна крутка -->
+        <div class="ctrl-row">
+          <div class="ctrl" id="ctrlPulls">
+            <label>// ЧИСЛО ПУЛЛОВ</label>
+            <div class="pulls-field">
+              <input type="number" id="inPulls" value="120" min="1" max="2000">
+              <button class="mine-btn" id="useMineBtn" title="Подставить пуллы, посчитанные в калькуляторе">
+                <span class="mb-ic">◆</span> МОИ ПУЛЛЫ <b id="mineCount">0</b>
+              </button>
+            </div>
+          </div>
+          <div class="ctrl" id="ctrlTrials">
+            <label>// ПРОГОНОВ</label>
+            <input type="number" id="inTrials" value="20000" min="1000" max="300000" step="1000">
+          </div>
+          <div class="ctrl" id="ctrlTarget" style="display:none">
+            <label>// ЦЕЛЬ</label>
+            <input type="hidden" id="inTarget" value="0">
+            <div class="dropdown" data-for="inTarget">
+              <button type="button" class="dd-trigger"><span class="dd-label">E0 — Чистый оперативник</span><span class="dd-caret">▾</span></button>
+              <div class="dd-menu">
+                <div class="dd-opt" data-value="0">E0 — Чистый оперативник</div>
+                <div class="dd-opt" data-value="1">E1 — Фаза потенциала 1</div>
+                <div class="dd-opt" data-value="2">E2 — Фаза потенциала 2</div>
+                <div class="dd-opt" data-value="3">E3 — Фаза потенциала 3</div>
+                <div class="dd-opt" data-value="4">E4 — Фаза потенциала 4</div>
+                <div class="dd-opt" data-value="5">E5 — Фаза потенциала 5 (макс)</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <button id="runBtn" class="run-btn">
+          <span class="rb-tri">▶</span><span class="rb-txt">ЗАПУСТИТЬ СИМУЛЯЦИЮ</span><span class="rb-arrow">↘</span>
+        </button>
+
+        <!-- индикатор прогона -->
+        <div id="simbar" class="simbar hidden">
+          <div class="simbar-track"><div class="simbar-fill" id="simFill"></div></div>
+          <div class="simbar-info"><span id="simStatus">COMPUTING…</span><span id="simPct">0%</span></div>
+        </div>
+
+        <!-- РЕЗУЛЬТАТЫ -->
+        <div id="results" class="results"><div class="results-inner" id="resultsInner"></div></div>
+
+      </div>
+    </div>
+
+    <div class="foot-tech">
+      <span>// HEADHUNTING SIM v1.0</span>
+      <span>RATE-UP: 6★ ОПЕРАТОР · МАКС E5</span>
+      <span>SOFT-PITY 66 / HARD-PITY 80 / GUARANTEE 120</span>
+    </div>
+    </div><!-- /page-sim -->
+
+    <!-- ===== СТРАНИЦА: КАЛЬКУЛЯТОР ПУЛЛОВ ===== -->
+    <div class="page hidden" id="page-calc">
+      <div class="section-head">
+        <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+        <div class="sh-en"><span class="sh-bar"></span>↘ RESOURCE CALCULATOR</div>
+        <h2 class="sh-ru">СКОЛЬКО У МЕНЯ ПУЛЛОВ</h2>
+        <div class="sh-tech">**RESOURCE-TO-PULL CONVERSION / SYSTEM INTERFACES<div class="sh-cells">▪▪▪▪▪▪</div><div class="sh-cmyk"></div></div>
+      </div>
+
+      <div class="panel">
+        <div class="ybanner"><span>RESOURCES</span><div class="ybanner-tech">▮▯ CONVERSION CORE / 500 = 1 PULL</div></div>
+        <div class="panel-body calc-body">
+
+          <!-- БЕСПЛАТНЫЕ ИСТОЧНИКИ 2×2 -->
+          <div class="calc-grid2">
+
+            <!-- 1. ПУЛЛЫ ЗА ВХОД -->
+            <div class="calc-block">
+              <div class="cb-head"><img src="icons/Basic_HH_Permit.png" class="cb-ic"><div><div class="cb-title">ПУЛЛЫ ЗА ВХОД</div><div class="cb-sub">// до 5 за 3 дня (2/2/1)</div></div><div class="cb-out" id="outLogin">0 <span>пуллов</span></div></div>
+              <div class="toggles" id="loginToggles"></div>
+            </div>
+
+            <!-- 2. ТАЛОНЫ АПК -->
+            <div class="calc-block">
+              <div class="cb-head"><img src="icons/AIC_Quota.png" class="cb-ic"><div><div class="cb-title">ТАЛОНЫ АПК</div><div class="cb-sub">// до 5 пуллов</div></div><div class="cb-out" id="outApc">0 <span>пуллов</span></div></div>
+              <div class="slider" data-target="apc" data-min="0" data-max="5" data-val="0" data-unit="пуллов"></div>
+            </div>
+
+            <!-- 3. БАЗОВЫЕ ТАЛОНЫ -->
+            <div class="calc-block">
+              <div class="cb-head"><img src="icons/Vitrified_Coin.png" class="cb-ic"><div><div class="cb-title">БАЗОВЫЕ ТАЛОНЫ</div><div class="cb-sub">// 25 талонов = 1 пулл</div></div><div class="cb-out" id="outBase">0 <span>пуллов</span></div></div>
+              <div class="df-col single"><label><img src="icons/Vitrified_Coin.png" class="df-ic">БАЗОВЫЕ ТАЛОНЫ</label><input type="number" id="inBase" value="0" min="0" placeholder="кол-во талонов" class="calc-num wide"></div>
+            </div>
+
+            <!-- 4. ОРОБЕРИЛ + ОРИДЖЕМЕТРИЙ -->
+            <div class="calc-block">
+              <div class="cb-head"><img src="icons/Oroberyl.png" class="cb-ic"><div><div class="cb-title">ОРОБЕРИЛ / ОРИДЖЕМЕТРИЙ</div><div class="cb-sub">// 500 оро = 1 пулл · 1 ориджи = 75 оро</div></div><div class="cb-out" id="outOro">0 <span>пуллов</span></div></div>
+              <div class="dual-field">
+                <div class="df-col"><label><img src="icons/Oroberyl.png" class="df-ic">ОРОБЕРИЛ</label><input type="number" id="inOro" value="0" min="0" placeholder="0" class="calc-num wide"></div>
+                <div class="df-col"><label><img src="icons/Origeometry.png" class="df-ic">ОРИДЖЕМЕТРИЙ</label><input type="number" id="inOrig" value="0" min="0" placeholder="0" class="calc-num wide"><div class="df-conv" id="outOrig">= 0 ороберила</div></div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- 6. ДОНАТЫ -->
+          <div class="calc-block">
+            <div class="cb-head"><img src="icons/Origeometry.png" class="cb-ic"><div><div class="cb-title">ДОНАТЫ</div><div class="cb-sub">// удвоение — раз на пакет, обычных — сколько угодно</div></div></div>
+            <div class="donate-grid" id="donateGrid"></div>
+          </div>
+
+          <!-- ИТОГ -->
+          <div class="calc-total">
+            <div class="ct-line"></div>
+            <div class="ct-row">
+              <div class="ct-label">// ВСЕГО ОРОБЕРИЛА</div>
+              <div class="ct-val" id="totalOro">0</div>
+            </div>
+            <div class="ct-row big">
+              <div class="ct-label"><img src="icons/Chartered_HH_Permit.png" class="ct-pull-ic"> // ВСЕГО ПУЛЛОВ</div>
+              <div class="ct-val accent" id="totalPulls">0</div>
+            </div>
+            <div class="ct-breakdown" id="breakdown"></div>
+
+            <!-- чекаут (реальные деньги) -->
+            <div class="checkout" id="checkout">
+              <div class="co-inner">
+                <div class="co-tag">// CHECKOUT · РЕАЛЬНЫЕ ДЕНЬГИ</div>
+                <div class="co-body">
+                  <div class="co-main"><span class="co-val" id="checkoutVal">€0.00</span><span class="co-per" id="checkoutPer"></span></div>
+                  <div class="co-note">потрачено на донаты</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <div class="foot-tech">
+        <span>// RESOURCE CALC v1.0</span>
+        <span>1 ORIGEOMETRY = 75 OROBERYL · 500 OROBERYL = 1 PULL</span>
+        <span>BASE TICKET 25:1 · AIC QUOTA · LOGIN BONUS</span>
+      </div>
+    </div><!-- /page-calc -->
+  </main>
+
+  <!-- нижний бар (только мобайл) -->
+  <nav class="tabbar" id="tabbar">
+    <button class="tab active" data-tab="sim"><span class="tab-ic">◈</span><span>Симулятор</span></button>
+    <button class="tab" data-tab="calc"><span class="tab-ic">◆</span><span>Ресурсы</span></button>
+  </nav>
+</div>
+
+<script src="topomap.js"></script>
+<script src="sim.js"></script>
+<script src="app.js"></script>
+<script src="calc.js"></script>
+</body>
+</html>
