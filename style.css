@@ -235,6 +235,9 @@ body{
   transition:grid-template-rows .45s cubic-bezier(.2,.8,.2,1), opacity .4s ease, margin-top .4s ease}
 .results.open{grid-template-rows:1fr;opacity:1;margin-top:28px}
 .results > .results-inner{overflow:hidden;min-height:0}
+/* после раскрытия снимаем grid-слой — иначе текст внутри мылится (сабпиксельный рендер) */
+.results.open{grid-template-rows:1fr}
+.results.shown{grid-template-rows:auto!important}
 @keyframes resIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}
 .res-head{font-family:var(--mono);font-size:14px;font-weight:700;letter-spacing:.05em;
   margin-bottom:18px;display:flex;align-items:baseline;gap:12px;border-bottom:1px solid var(--ink);padding-bottom:8px}
@@ -258,12 +261,15 @@ body{
   border:1px solid var(--line);background:var(--gray-bg)}
 .ev{display:flex;gap:14px;padding:9px 14px;font-family:var(--mono);font-size:12px;background:var(--surface);
   animation:evIn .3s ease both}
-@keyframes evIn{from{opacity:0;transform:translateX(-8px)}to{opacity:1;transform:none}}
+/* только opacity, без transform — иначе текст мылится после анимации (композитный слой) */
+@keyframes evIn{from{opacity:0}to{opacity:1}}
 .ev-n{color:var(--gray);min-width:54px}
 .ev-rateup{border-left:4px solid var(--six);background:rgba(255,122,26,.08)}
 .ev-rateup .ev-l{font-weight:700;color:var(--six)}
 .ev-six{border-left:4px solid var(--six);color:var(--six)}
 .ev-token{color:var(--magenta);font-size:10px;margin-left:6px}
+.ev-token-row{border-left:4px solid #b35a1a;background:rgba(179,90,26,.10)}
+.ev-token-row .ev-l{color:#c47a3d;font-weight:700}
 .ev-empty{color:var(--gray);border-left:4px solid var(--gray-l)}
 
 /* распределение */
@@ -278,8 +284,30 @@ body{
 .dr-v{min-width:62px;text-align:right;font-weight:700}
 
 /* гистограмма */
+/* обёртка гистограммы с местом под дуги (сверху) и маркеры (снизу) */
+.histo-wrap{position:relative;padding:34px 0 30px}
 .histo{display:flex;align-items:stretch;gap:2px;height:170px;border-bottom:1px solid var(--gray);
   border-left:1px solid var(--gray);padding-left:4px}
+
+/* слой дуг над графиком */
+.histo-arcs{position:absolute;left:4px;right:0;top:0;height:30px;pointer-events:none}
+.harc{position:absolute;bottom:0;height:24px;display:flex;align-items:flex-end;justify-content:center}
+.harc-line{position:absolute;left:6px;right:6px;top:2px;height:14px;
+  border:1px solid var(--line);border-bottom:none;border-radius:8px 8px 0 0}
+.harc-val{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--ink2);
+  background:var(--bg);padding:0 5px;position:relative;z-index:1}
+
+/* слой маркеров под графиком */
+.histo-markers{position:absolute;left:4px;right:0;bottom:0;height:28px}
+.hm{position:absolute;top:0;transform:translateX(-50%);display:flex;flex-direction:column;
+  align-items:center;gap:3px;cursor:default}
+.hm-dot{width:2px;height:8px;background:var(--six)}
+.hm-label{font-family:var(--mono);font-size:10px;font-weight:700;color:var(--six);
+  background:var(--bg);padding:1px 4px;border-radius:3px;white-space:nowrap}
+.hm:hover .hm-label{background:var(--six);color:#161616}
+/* вертикальная линия маркера через график */
+.hm::before{content:'';position:absolute;bottom:28px;left:50%;width:1px;height:178px;
+  background:rgba(255,138,51,.25);transform:translateX(-50%);pointer-events:none}
 /* обёртка на всю высоту — ловит ховер и над столбцом */
 .hb-col{flex:1;min-width:2px;display:flex;align-items:flex-end;position:relative;cursor:default}
 .hb-col::before{content:'';position:absolute;inset:0;background:rgba(255,138,51,.12);
@@ -295,6 +323,7 @@ body{
   opacity:0;transition:opacity .12s;box-shadow:0 4px 14px rgba(0,0,0,.5)}
 .histo-tip.show{opacity:1}
 .res-note{font-family:var(--mono);font-size:12px;color:var(--gray);margin-top:16px}
+.rn-hint{color:var(--gray);opacity:.75}
 .res-note b{color:var(--six)}
 
 /* подвал */
@@ -557,6 +586,51 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   .dc-name{font-size:12px}
   .dc-amt{font-size:16px}
   .dc-dbl-text{font-size:10px}
+}
+
+/* ── подсчёт призов ── */
+.maxed-toggle{display:flex;align-items:center;gap:12px;cursor:pointer;user-select:none;
+  margin-bottom:22px;padding:14px 16px;border:1px solid var(--line);border-radius:8px;
+  background:var(--surface);transition:.15s}
+.maxed-toggle:hover{border-color:var(--gray)}
+.maxed-toggle input{display:none}
+.mt-box{flex-shrink:0;width:22px;height:22px;border:2px solid var(--gray);background:var(--surface-2);
+  border-radius:5px;position:relative;transition:.15s}
+.maxed-toggle input:checked + .mt-box{background:var(--yellow);border-color:var(--yellow)}
+.maxed-toggle input:checked + .mt-box::after{content:'✓';position:absolute;inset:0;color:#161616;
+  font-size:14px;font-weight:900;display:flex;align-items:center;justify-content:center}
+.mt-text{font-size:13.5px;color:var(--ink2);line-height:1.4}
+.mt-text b{color:var(--ink);font-weight:600}
+
+.prize-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.prize-grid.four{grid-template-columns:repeat(2,1fr)}
+@media(max-width:760px){.prize-grid,.prize-grid.four{grid-template-columns:1fr}}
+/* иконка редкости */
+.rar-ic{height:20px;width:auto;vertical-align:middle;image-rendering:auto}
+.prize-card{display:flex;align-items:center;gap:16px;padding:18px 18px;
+  border:1px solid var(--line);border-radius:12px;background:var(--surface);box-shadow:var(--shadow)}
+.pz-ic{width:58px;height:58px;object-fit:contain;flex-shrink:0;
+  filter:drop-shadow(0 2px 5px rgba(0,0,0,.3))}
+.pz-body{flex:1;min-width:0}
+.pz-label{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--gray)}
+.pz-val{font-family:var(--mono);font-weight:700;font-size:30px;line-height:1.1;color:var(--yellow)}
+.pz-hint{font-family:var(--mono);font-size:10px;color:var(--gray);margin-top:3px}
+
+/* поимённая таблица 6★ */
+.op-table{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.op-row{display:flex;align-items:center;gap:12px;padding:11px 16px;font-family:var(--mono);font-size:13px;
+  background:var(--surface);border-bottom:1px solid var(--line);transition:.12s}
+.op-row:last-child{border-bottom:none}
+.op-row.has{background:rgba(255,138,51,.06)}
+.op-row.rateup{border-left:3px solid var(--yellow)}
+.op-row.rateup.has{background:rgba(255,250,0,.08)}
+.op-name{font-weight:700;color:var(--ink);min-width:130px}
+.op-role{flex:1;font-size:11px;color:var(--gray);letter-spacing:.03em}
+.op-count{font-weight:700;font-size:15px;color:var(--six);min-width:50px;text-align:right}
+.op-row:not(.has) .op-count{color:var(--gray)}
+@media(max-width:600px){
+  .op-name{min-width:0;flex:1}
+  .op-role{display:none}
 }
 
 /* скролл */

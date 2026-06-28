@@ -38,6 +38,9 @@ onmessage = (e) => {
       delete r.raw;
       r.histo = histo;
       postMessage({ type: 'done', result: r });
+    } else if (mode === 'prizes') {
+      const r = prizesMonte(params.pulls, params.trials, params.maxed, progress, params.freebies);
+      postMessage({ type: 'done', result: r });
     }
   } catch (err) {
     postMessage({ type: 'error', message: String(err && err.message || err) });

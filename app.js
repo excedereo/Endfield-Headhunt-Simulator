@@ -201,6 +201,7 @@ const titles = {
   detailed: 'ОДНА КРУТКА',
   monte: 'МОНТЕ-КАРЛО',
   reverse: 'СКОЛЬКО ДО ЦЕЛИ',
+  prizes: 'ПОДСЧЁТ ПРИЗОВ',
 };
 const descs = {
   detailed: 'Симулирует <b>один заход</b> на баннер: крутим заданное число пуллов и смотрим, ' +
@@ -215,6 +216,11 @@ const descs = {
            'сколько пуллов в среднем нужно, чтобы её закрыть. Показывает среднее, медиану, ' +
            'везучие и невезучие 10% и гистограмму разброса. Отвечает на вопрос ' +
            '<b>«сколько копить под нужный потенциал»</b>.',
+  prizes: 'Считает <b>какие талоны накапают</b> за прокрутки: базовые талоны (за копии 6★/5★), ' +
+          'премиум-талоны и АПК (за лишние жетоны), билеты арсенала. Учитываются бесплатные пуллы ' +
+          '(+10 после 30 платных). Галка «вымакшено» — если стандартные операторы у тебя уже на максе, ' +
+          'каждое их выпадение идёт в талоны; если нет — первая копия каждого это сам оператор. ' +
+          'Можно один прокрут или среднее по тысячам.',
 };
 function applyDesc() {
   const el = document.getElementById('modeDescText');
@@ -225,9 +231,15 @@ function applyDesc() {
 function setMode(mode) {
   MODE = mode;
   document.getElementById('modeTitle').textContent = titles[MODE];
-  document.getElementById('ctrlTrials').style.display = MODE === 'detailed' ? 'none' : '';
-  document.getElementById('ctrlTarget').style.display = MODE === 'reverse' ? '' : 'none';
-  document.getElementById('ctrlPulls').style.display = MODE === 'reverse' ? 'none' : '';
+  const isPrizes = mode === 'prizes';
+  // у призов число прогонов нужно только в под-режиме «Монте»
+  const prizeMonte = isPrizes && document.getElementById('inPrizeMode').value === 'monte';
+  document.getElementById('ctrlTrials').style.display =
+    (mode === 'monte' || mode === 'reverse' || prizeMonte) ? '' : 'none';
+  document.getElementById('ctrlTarget').style.display = mode === 'reverse' ? '' : 'none';
+  document.getElementById('ctrlPulls').style.display = mode === 'reverse' ? 'none' : '';
+  document.getElementById('ctrlPrizeMode').style.display = isPrizes ? '' : 'none';
+  document.getElementById('ctrlMaxed').style.display = isPrizes ? '' : 'none';
   document.getElementById('results').classList.remove('open');
   setTimeout(() => { document.getElementById('resultsInner').innerHTML = ''; }, 200);
   applyDesc();
@@ -255,10 +267,13 @@ runBtn.addEventListener('click', () => {
   const pity = 0; // старт пити всегда с нуля (свежий баннер)
   const trials = clampInt('inTrials', 1000, 300000);
   const target = parseInt(document.getElementById('inTarget').value, 10);
+  const maxed = document.getElementById('inMaxed').checked;
+  const freebies = true; // бесплатные пуллы всегда учитываются (правило баннера)
+  const prizeMode = document.getElementById('inPrizeMode').value; // 'monte' | 'single'
 
   const res = document.getElementById('results');
   const resInner = document.getElementById('resultsInner');
-  res.classList.remove('open');           // схлопываем прошлый результат
+  res.classList.remove('open', 'shown');  // схлопываем прошлый результат
   setTimeout(() => { resInner.innerHTML = ''; }, 200);
 
   const simbar = document.getElementById('simbar');
@@ -284,7 +299,7 @@ runBtn.addEventListener('click', () => {
   status.textContent = 'INITIALIZING ENGINE…';
   setTimeout(() => {
     status.textContent = 'COMPUTING…';
-    runMode(MODE, { pulls, pity, trials, target, setProg }).then(html => {
+    runMode(MODE, { pulls, pity, trials, target, maxed, freebies, prizeMode, setProg }).then(html => {
       setProg(1);
       status.textContent = 'DONE ✓';
       setTimeout(() => {
@@ -295,6 +310,13 @@ runBtn.addEventListener('click', () => {
         // вставляем результат и плавно раскрываем
         resInner.innerHTML = html.html;
         requestAnimationFrame(() => requestAnimationFrame(() => res.classList.add('open')));
+        // после анимации раскрытия — снимаем grid-слой (чтобы текст не мылился)
+        res.addEventListener('transitionend', function onEnd(e) {
+          if (e.propertyName === 'grid-template-rows') {
+            res.classList.add('shown');
+            res.removeEventListener('transitionend', onEnd);
+          }
+        });
         html.after && html.after();
       }, 350);
     });
@@ -353,7 +375,7 @@ function runInWorker(mode, params, onProgress) {
   });
 }
 
-// detailed — мгновенный, считаем синхронно. monte/reverse — в воркере.
+// detailed и prizes-single — мгновенные, синхронно. monte/reverse/prizes-monte — в воркере.
 function runMode(mode, p) {
   if (mode === 'detailed') {
     return new Promise(resolve => requestAnimationFrame(() => {
@@ -362,20 +384,27 @@ function runMode(mode, p) {
       resolve(renderDetailed(r, p));
     }));
   }
-  const params = { pulls: p.pulls, pity: p.pity, trials: p.trials, target: p.target };
+  if (mode === 'prizes' && p.prizeMode === 'single') {
+    return new Promise(resolve => requestAnimationFrame(() => {
+      const r = prizesOneRun(p.pulls, p.maxed, true, p.freebies); // keepLog + бесплатные
+      p.setProg(1);
+      resolve(renderPrizes(r, p, true));
+    }));
+  }
+  const params = { pulls: p.pulls, pity: p.pity, trials: p.trials, target: p.target, maxed: p.maxed, freebies: p.freebies };
   return runInWorker(mode, params, p.setProg)
-    .then(r => mode === 'monte' ? renderMonte(r, p) : renderReverse(r, p))
+    .then(r => {
+      if (mode === 'monte') return renderMonte(r, p);
+      if (mode === 'reverse') return renderReverse(r, p);
+      return renderPrizes(r, p, false); // prizes-monte
+    })
     .catch(err => {
       // fallback: если воркер недоступен (например открыто как file:// в строгом браузере) — синхронно
       if (err.message === 'no-worker') {
         return new Promise(resolve => requestAnimationFrame(() => {
-          if (mode === 'monte') {
-            const r = monteCarlo(p.pulls, p.trials, p.pity, p.setProg);
-            resolve(renderMonte(r, p));
-          } else {
-            const r = pullsUntil(p.target, p.trials, p.pity, p.setProg);
-            resolve(renderReverse(r, p));
-          }
+          if (mode === 'monte') resolve(renderMonte(monteCarlo(p.pulls, p.trials, p.pity, p.setProg), p));
+          else if (mode === 'reverse') resolve(renderReverse(pullsUntil(p.target, p.trials, p.pity, p.setProg), p));
+          else resolve(renderPrizes(prizesMonte(p.pulls, p.trials, p.maxed, p.setProg, p.freebies), p, false));
         }));
       }
       throw err;
@@ -453,9 +482,109 @@ function renderReverse(r, p) {
       ${statCard('НЕВЕЗУЧИЕ 10%', r.worst10, {})}
     </div>
     <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ (гистограмма)</div>
-    <div class="histo" id="histo"></div>
-    <div class="res-note">// худший 1% случаев: <b>${r.worst1}</b> пуллов</div>`;
+    <div class="histo-wrap">
+      <div class="histo-arcs" id="histoArcs"></div>
+      <div class="histo" id="histo"></div>
+      <div class="histo-markers" id="histoMarkers"></div>
+    </div>
+    <div class="res-note">// худший 1% случаев: <b>${r.worst1}</b> пуллов · <span class="rn-hint">Г — гарант, Ж1/Ж2… — гарантированные жетоны</span></div>`;
   return { html, after: () => { animateStatCards(); drawHisto(r); } };
+}
+
+/* ── РЕНДЕР: подсчёт призов ── */
+function renderPrizes(r, p, single) {
+  // single: {baseTickets, premium, aic, count6,count5,count4, camilleCopies, camilleTokens}
+  // monte:  {avgBase, avgPrem, avgAic, avg6,avg5,avg4, trials}
+  const base = single ? r.baseTickets : r.avgBase;
+  const prem = single ? r.premium : r.avgPrem;
+  const aic = single ? r.aic : r.avgAic;
+  const arsenal = single ? r.arsenal : r.avgArs;
+  const c6 = single ? r.count6 : r.avg6;
+  const c5 = single ? r.count5 : r.avg5;
+  const c4 = single ? r.count4 : r.avg4;
+  const dec = single ? 0 : 1;     // в Монте дробные средние
+  const sub = single ? `// ОДИН ПРОКРУТ · ${p.pulls} ПУЛЛОВ`
+                     : `// ${p.pulls} ПУЛЛОВ × ${r.trials.toLocaleString('ru')} ПРОГОНОВ · СРЕДНЕЕ`;
+
+  const prizeCard = (icon, label, value, hint) => `
+    <div class="prize-card">
+      <img src="icons/${icon}" class="pz-ic">
+      <div class="pz-body">
+        <div class="pz-label">${label}</div>
+        <div class="pz-val" data-anim='${JSON.stringify({ value, decimals: dec })}'>0</div>
+        <div class="pz-hint">${hint}</div>
+      </div>
+    </div>`;
+
+  // иконка редкости
+  const rar = n => `<img src="icons/32px-Rarity_${n}.webp" class="rar-ic" alt="${n}★">`;
+
+  // поимённая разбивка 6★ (имена нейтральные, приходят из движка)
+  const byName = single ? r.byName : r.avgName;
+  const fmtN = v => single ? Math.round(v) : v.toFixed(2);
+  let opRows = '';
+  NAMES_6.forEach((name, i) => {
+    const v = byName[name] || 0;
+    const isRateup = (i === 0);
+    opRows += `<div class="op-row${v > 0 ? ' has' : ''}${isRateup ? ' rateup' : ''}">
+      <span class="op-name">${rar(6)} ${name}</span>
+      <span class="op-count">${fmtN(v)}</span></div>`;
+  });
+
+  // лог событий: 6★ + жетоны за 240 (только single)
+  let logHtml = '';
+  if (single && r.log6) {
+    if (r.log6.length) {
+      logHtml = '<div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div><div class="evlog">' +
+        r.log6.map(e => {
+          const num = (typeof e.pull === 'number') ? '#' + String(e.pull).padStart(4, '0') : 'FREE';
+          if (e.token240) {
+            // жетон за 240-й пулл
+            return `<div class="ev ev-token-row">
+              <span class="ev-n">${num}</span>
+              <span class="ev-l">⬡ +1 жетон за 240-й пулл</span></div>`;
+          }
+          const tag = e.forced ? ' · ГАРАНТ 120' : (e.free ? ' · бесплатный' : (e.rateup ? ' · rate-up' : ''));
+          return `<div class="ev${e.rateup ? ' ev-rateup' : ' ev-six'}">
+            <span class="ev-n">${num}</span>
+            <span class="ev-l">${rar(6)} ${e.name}${tag}</span></div>`;
+        }).join('') + '</div>';
+    } else {
+      logHtml = '<div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div><div class="evlog"><div class="ev ev-empty">// ни одного события за прокрут</div></div>';
+    }
+  }
+
+  const html = `
+    <div class="res-head">↘ ПОДСЧЁТ ПРИЗОВ <span class="rh-tech">${sub}</span></div>
+    <div class="prize-grid four">
+      ${prizeCard('Bond_Quota.png', 'БАЗОВЫЕ ТАЛОНЫ', base, 'за копии 6★/5★')}
+      ${prizeCard('AIC_Quota.png', 'ТАЛОНЫ АПК', aic, 'за лишние жетоны 5★/4★')}
+      ${prizeCard('Endpoint_Quota.png', 'ПРЕМИУМ-ТАЛОНЫ', prem, 'за лишние жетоны 6★')}
+      ${prizeCard('Arsenal_Ticket.png', 'БИЛЕТЫ АРСЕНАЛА', arsenal, '2000/200/20 за 6★/5★/4★')}
+    </div>
+    <div class="res-head sub">↘ ВЫПАЛО ПО РЕДКОСТИ</div>
+    <div class="stat-grid">
+      ${statCard(rar(6), c6, { decimals: dec })}
+      ${statCard(rar(5), c5, { decimals: dec })}
+      ${statCard(rar(4), c4, { decimals: dec })}
+    </div>
+    <div class="res-head sub">↘ 6★ ПОИМЁННО</div>
+    <div class="op-table">${opRows}</div>
+    ${logHtml}
+    <div class="res-note">// ${p.maxed ? 'стандартные операторы вымакшены — все копии в талоны' : 'первая копия каждого оператора = он сам, дальше в талоны'}</div>`;
+
+  return {
+    html,
+    after: () => {
+      animateStatCards();
+      // анимируем карточки призов
+      document.querySelectorAll('.pz-val[data-anim]').forEach((el, i) => {
+        const d = JSON.parse(el.dataset.anim);
+        el.removeAttribute('data-anim');
+        setTimeout(() => animateNumber(el, d.value, { decimals: d.decimals }), 80 * i);
+      });
+    },
+  };
 }
 
 /* ── вспомогательные ── */
@@ -501,6 +630,7 @@ function drawHisto(r) {
   }
   const peak = Math.max(...counts);
   const total = counts.reduce((a, b) => a + b, 0);
+  const nCols = counts.length;
   const host = document.getElementById('histo');
   host.innerHTML = '';
   counts.forEach((c, i) => {
@@ -516,6 +646,107 @@ function drawHisto(r) {
     setTimeout(() => { bar.style.height = (c / peak * 100) + '%'; }, i * 14);
   });
   attachHistoTip(host);
+  drawHistoMarkers(counts, bucket, nCols, total);
+}
+
+// позиционирование тултипа с клампом по краям окна (не вылезает за экран)
+function placeTip(tip, x, y) {
+  // нужна ширина — показываем, меряем, клампим
+  tip.style.left = '-9999px';
+  tip.style.top = (y - 14) + 'px';
+  const w = tip.offsetWidth;
+  const half = w / 2;
+  const pad = 8;
+  let left = Math.max(half + pad, Math.min(window.innerWidth - half - pad, x));
+  tip.style.left = left + 'px';
+  // если у верхнего края — показать снизу курсора
+  if (y - tip.offsetHeight - 14 < 0) {
+    tip.style.top = (y + 22) + 'px';
+    tip.style.transform = 'translate(-50%, 0)';
+  } else {
+    tip.style.transform = 'translate(-50%, -100%)';
+  }
+}
+
+// маркеры событий (Г-120, Ж1-240, Ж2-480…) + дуги с суммой % между ними
+function drawHistoMarkers(counts, bucket, nCols, total) {
+  const markersEl = document.getElementById('histoMarkers');
+  const arcsEl = document.getElementById('histoArcs');
+  if (!markersEl || !arcsEl) return;
+  markersEl.innerHTML = '';
+  arcsEl.innerHTML = '';
+
+  const maxPull = nCols * bucket;
+  // ключевые события (только те что в диапазоне)
+  const events = [
+    { pull: 120, label: 'Г', tip: 'Гарант 120 — если rate-up не выпал за 120 платных пуллов, он гарантирован. Здесь «дозревают» невезучие прогоны.' },
+    { pull: 240, label: 'Ж1', tip: '1-й гарантированный жетон (каждый 240-й пулл). Даёт +1 потенциал всем — отсюда ступенька.' },
+    { pull: 480, label: 'Ж2', tip: '2-й гарантированный жетон (480-й пулл). Большинство добирает до E5 именно тут — главный пик.' },
+    { pull: 720, label: 'Ж3', tip: '3-й гарантированный жетон (720-й пулл). Сюда доходят самые невезучие.' },
+    { pull: 960, label: 'Ж4', tip: '4-й гарантированный жетон (960-й пулл).' },
+  ].filter(e => e.pull <= maxPull);
+
+  // позиция пулла в % ширины (центр соответствующей колонки)
+  const posPct = pull => ((Math.floor(pull / bucket) + 0.5) / nCols) * 100;
+  // маркеры снизу (на колонке, содержащей событие)
+  events.forEach(e => {
+    const m = document.createElement('div');
+    m.className = 'hm';
+    m.style.left = posPct(e.pull) + '%';
+    m.dataset.tip = `${e.label} · ${e.pull} пуллов — ${e.tip}`;
+    m.innerHTML = `<span class="hm-dot"></span><span class="hm-label">${e.label}</span>`;
+    markersEl.appendChild(m);
+  });
+
+  // ── дуги по индексам бакетов ──
+  // событие на пулле P попадает в бакет bi = floor(P/bucket). Столбец этого бакета
+  // (напр. 480-489) — РЕЗУЛЬТАТ жетона, поэтому он ЗАВЕРШАЕТ участок, ведущий к событию.
+  // edge(bi) = левый край бакета bi в %.
+  const edge = bi => (bi / nCols) * 100;
+  // сумма % по бакетам [biFrom, biTo] включительно
+  const sumBuckets = (biFrom, biTo) => {
+    let s = 0;
+    for (let i = Math.max(0, biFrom); i <= biTo && i < counts.length; i++) s += counts[i];
+    return total ? (s / total * 100) : 0;
+  };
+  // границы-бакеты: 0, бакет(120), бакет(240), бакет(480)... и последний бакет
+  const evBuckets = events.map(e => Math.floor(e.pull / bucket));
+  const segStarts = [0];                 // индекс бакета, с которого начинается участок
+  const segEnds = [];                    // индекс бакета, которым участок заканчивается (включительно)
+  evBuckets.forEach(bi => { segEnds.push(bi); segStarts.push(bi + 1); });
+  segEnds.push(counts.length - 1);       // последний участок до конца
+
+  for (let i = 0; i < segStarts.length; i++) {
+    const biFrom = segStarts[i], biTo = segEnds[i];
+    if (biTo < biFrom) continue;
+    const left = edge(biFrom);
+    const right = edge(biTo + 1);        // правый край последнего бакета участка
+    const width = right - left;
+    if (width <= 0) continue;
+    const pct = sumBuckets(biFrom, biTo);
+    const arc = document.createElement('div');
+    arc.className = 'harc';
+    arc.style.left = left + '%';
+    arc.style.width = width + '%';
+    arc.innerHTML = `<span class="harc-line"></span><span class="harc-val">${pct.toFixed(1)}%</span>`;
+    arcsEl.appendChild(arc);
+  }
+
+  // ховер для маркеров (переиспользуем общий тултип)
+  attachMarkerTip(markersEl);
+}
+
+function attachMarkerTip(host) {
+  let tip = document.getElementById('histoTip');
+  if (!tip) { tip = document.createElement('div'); tip.id = 'histoTip'; tip.className = 'histo-tip'; document.body.appendChild(tip); }
+  host.addEventListener('mousemove', e => {
+    const m = e.target.closest('.hm');
+    if (!m) { tip.classList.remove('show'); return; }
+    tip.textContent = m.dataset.tip;
+    tip.classList.add('show');
+    placeTip(tip, e.clientX, e.clientY);
+  });
+  host.addEventListener('mouseleave', () => tip.classList.remove('show'));
 }
 
 // единый тултип для гистограммы (следует за курсором)
@@ -532,8 +763,7 @@ function attachHistoTip(host) {
     if (!col) { tip.classList.remove('show'); return; }
     tip.textContent = col.dataset.tip;
     tip.classList.add('show');
-    tip.style.left = e.clientX + 'px';
-    tip.style.top = (e.clientY - 14) + 'px';
+    placeTip(tip, e.clientX, e.clientY);
   });
   host.addEventListener('mouseleave', () => tip.classList.remove('show'));
 }
@@ -553,8 +783,7 @@ function attachRowTip(host) {
     if (!row) { tip.classList.remove('show'); return; }
     tip.textContent = row.dataset.tip;
     tip.classList.add('show');
-    tip.style.left = e.clientX + 'px';
-    tip.style.top = (e.clientY - 14) + 'px';
+    placeTip(tip, e.clientX, e.clientY);
   });
   host.addEventListener('mouseleave', () => tip.classList.remove('show'));
 }
@@ -562,3 +791,8 @@ function attachRowTip(host) {
 // инициализация улучшенных полей (DOM уже готов — скрипт в конце body)
 enhanceNumberInputs();
 initDropdowns();
+
+// смена под-режима призов (один/Монте) → обновить видимость числа прогонов
+document.getElementById('inPrizeMode').addEventListener('change', () => {
+  if (MODE === 'prizes') setMode('prizes');
+});
