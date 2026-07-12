@@ -207,6 +207,18 @@
         <div class="sh-tech">**RESOURCE-TO-PULL CONVERSION / SYSTEM INTERFACES<div class="sh-cells">▪▪▪▪▪▪</div><div class="sh-cmyk"></div></div>
       </div>
 
+      <!-- ГРАФИК КРУТОК ПО ДНЯМ -->
+      <div class="panel history-panel" id="historyPanel">
+        <div class="ybanner"><span>HISTORY</span><div class="ybanner-tech">▮▯ SAVED SNAPSHOTS / BY DAY</div></div>
+        <div class="panel-body">
+          <div class="hist-head">
+            <div class="hist-title">ПУЛЛЫ ПО ДНЯМ<span class="info" tabindex="0" data-info="Сколько пуллов было накоплено (по сохранённым снапшотам калькулятора) на каждый день. Показывает последний снапшот за день.">?</span></div>
+            <div class="hist-empty" id="histEmpty">// нет сохранённых снапшотов</div>
+          </div>
+          <div class="hist-chart" id="histChart"></div>
+        </div>
+      </div>
+
       <div class="panel">
         <div class="ybanner"><span>RESOURCES</span><div class="ybanner-tech">▮▯ CONVERSION CORE / 500 = 1 PULL</div></div>
         <div class="panel-body calc-body">
@@ -264,6 +276,12 @@
               <div class="ct-val accent" id="totalPulls">0</div>
             </div>
             <div class="ct-breakdown" id="breakdown"></div>
+
+            <!-- сохранение снапшота -->
+            <div class="save-row">
+              <button class="save-btn" id="saveBtn"><span class="sb-ic">◆</span><span class="sb-txt">СОХРАНИТЬ</span></button>
+              <div class="save-status" id="saveStatus"></div>
+            </div>
 
             <!-- чекаут (реальные деньги) -->
             <div class="checkout" id="checkout">

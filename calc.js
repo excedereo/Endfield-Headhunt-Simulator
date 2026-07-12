@@ -395,9 +395,11 @@ function recalc() {
 }
 
 /* ── СОХРАНЕНИЕ / ЗАГРУЗКА (localStorage = постоянный файл браузера) ── */
+// автосохранение состояния полей (черновик — переживает перезагрузку, но не считается «снапшотом»)
 const SAVE_KEY = 'endfield_calc_v1';
 function saveState() {
   try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {}
+  markDirty();
 }
 function loadState() {
   try {
@@ -408,6 +410,107 @@ function loadState() {
     ['apc', 'base', 'orig', 'oro', 'passDays'].forEach(k => { if (typeof s[k] === 'number') state[k] = s[k]; });
     if (s.donates) state.donates = s.donates;
   } catch (e) {}
+}
+
+/* ── ЯВНОЕ СОХРАНЕНИЕ СНАПШОТА (кнопка «Сохранить») + ИСТОРИЯ ПО ДНЯМ ── */
+const HISTORY_KEY = 'endfield_history_v1';
+const LAST_SAVED_KEY = 'endfield_last_saved_v1';
+let lastSavedSnapshot = null; // JSON.stringify(state) на момент последнего явного сохранения
+
+function loadLastSaved() {
+  try { lastSavedSnapshot = localStorage.getItem(LAST_SAVED_KEY); } catch (e) { lastSavedSnapshot = null; }
+  // первый визит: ещё не было явных сохранений — берём стартовое состояние за точку отсчёта,
+  // чтобы кнопка не подсвечивалась «грязной» пока пользователь ничего не менял
+  if (lastSavedSnapshot === null) lastSavedSnapshot = JSON.stringify(state);
+}
+
+function isDirty() {
+  return lastSavedSnapshot !== JSON.stringify(state);
+}
+
+function markDirty() {
+  const btn = document.getElementById('saveBtn');
+  const status = document.getElementById('saveStatus');
+  if (!btn || !status) return;
+  if (isDirty()) {
+    btn.classList.add('dirty'); btn.classList.remove('saved');
+    status.textContent = '// есть несохранённые изменения';
+    status.className = 'save-status dirty';
+  } else {
+    btn.classList.remove('dirty'); btn.classList.add('saved');
+    status.textContent = '// сохранено';
+    status.className = 'save-status saved';
+  }
+}
+
+function loadHistory() {
+  try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { return []; }
+}
+
+// сохраняет снапшот: фиксирует состояние + записывает точку в историю по дню (перезаписывая сегодняшнюю)
+function saveSnapshot() {
+  const totalPulls = parseInt(localStorage.getItem('endfield_my_pulls') || '0', 10) || 0;
+  const today = new Date();
+  const dateKey = today.toISOString().slice(0, 10); // YYYY-MM-DD
+
+  const history = loadHistory();
+  const idx = history.findIndex(h => h.date === dateKey);
+  const entry = { date: dateKey, pulls: totalPulls };
+  if (idx >= 0) history[idx] = entry; else history.push(entry);
+  history.sort((a, b) => a.date.localeCompare(b.date));
+  // храним последние 30 точек
+  const trimmed = history.slice(-30);
+
+  try {
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
+    lastSavedSnapshot = JSON.stringify(state);
+    localStorage.setItem(LAST_SAVED_KEY, lastSavedSnapshot);
+  } catch (e) {}
+
+  markDirty();
+  renderHistory();
+}
+
+function fmtHistDate(dateKey) {
+  const [y, m, d] = dateKey.split('-');
+  return `${d}.${m}`;
+}
+
+function renderHistory() {
+  const chart = document.getElementById('histChart');
+  const empty = document.getElementById('histEmpty');
+  if (!chart) return;
+  const history = loadHistory();
+  if (!history.length) {
+    chart.innerHTML = '';
+    if (empty) empty.style.display = '';
+    return;
+  }
+  if (empty) empty.style.display = 'none';
+  const max = Math.max(...history.map(h => h.pulls), 1);
+  chart.innerHTML = history.map(h => {
+    const pct = Math.max(4, Math.round(h.pulls / max * 100));
+    return `<div class="hist-col" title="${fmtHistDate(h.date)}: ${h.pulls.toLocaleString('ru')} пуллов">
+      <div class="hist-val">${h.pulls.toLocaleString('ru')}</div>
+      <div class="hist-bar-wrap"><div class="hist-bar" style="height:0%" data-pct="${pct}"></div></div>
+      <div class="hist-date">${fmtHistDate(h.date)}</div>
+    </div>`;
+  }).join('');
+  requestAnimationFrame(() => {
+    chart.querySelectorAll('.hist-bar').forEach((el, i) => {
+      setTimeout(() => { el.style.height = el.dataset.pct + '%'; }, i * 40);
+    });
+  });
+}
+
+function initSaveButton() {
+  const btn = document.getElementById('saveBtn');
+  if (!btn) return;
+  btn.addEventListener('click', saveSnapshot);
+  // предупреждение при уходе со страницы, если есть несохранённые изменения
+  window.addEventListener('beforeunload', e => {
+    if (isDirty()) { e.preventDefault(); e.returnValue = ''; }
+  });
 }
 
 function setOut(id, val, unit) {
@@ -444,6 +547,9 @@ function bindNumber(id, key) {
 /* ── ИНИЦИАЛИЗАЦИЯ (после прелоадера) ── */
 function initCalc() {
   loadState();              // сначала поднимаем сохранённое
+  loadLastSaved();          // снапшот последнего явного сохранения (для индикатора dirty)
+  initSaveButton();
+  renderHistory();
   initPages();
   buildLoginToggles();      // читают state.login
   buildDonates();           // читают state.donates
