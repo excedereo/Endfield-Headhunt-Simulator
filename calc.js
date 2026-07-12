@@ -464,14 +464,20 @@ function saveSnapshot() {
   const entry = { date: dateKey, pulls: totalPulls, oro, orig };
   if (idx >= 0) history[idx] = entry; else history.push(entry);
   history.sort((a, b) => a.date.localeCompare(b.date));
-  // храним последние 30 точек
-  const trimmed = history.slice(-30);
+  // храним снапшоты за последние ~2 года (по дням, не по числу точек — график теперь месячный)
+  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 730);
+  const cutoffKey = cutoff.toISOString().slice(0, 10);
+  const trimmed = history.filter(h => h.date >= cutoffKey);
 
   try {
     localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
     lastSavedSnapshot = JSON.stringify(state);
     localStorage.setItem(LAST_SAVED_KEY, lastSavedSnapshot);
   } catch (e) {}
+
+  // показываем месяц только что сохранённой точки
+  const [y, m] = dateKey.split('-').map(Number);
+  histCursor = { year: y, month: m - 1 };
 
   markDirty();
   renderHistory();
@@ -482,44 +488,92 @@ function fmtHistDate(dateKey) {
   return `${d}.${m}`;
 }
 
-// ломаная линия «пуллы по дням»: сегмент зелёный (рост), красный (падение), синий (без изменений)
+const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','Май','Июнь','Июль','Август','Сентябрь','Октябрь','Ноябрь','Декабрь'];
+
+// текущий показываемый месяц графика: {year, month} (month: 0-11). null → вычисляется динамически при первом рендере
+let histCursor = null;
+
+// самый свежий месяц, для которого есть хоть один снапшот (или текущий месяц, если истории ещё нет)
+function latestHistMonth(history) {
+  if (!history.length) {
+    const now = new Date();
+    return { year: now.getFullYear(), month: now.getMonth() };
+  }
+  const last = history[history.length - 1].date; // история отсортирована по дате
+  const [y, m] = last.split('-').map(Number);
+  return { year: y, month: m - 1 };
+}
+
+function daysInMonth(year, month) { return new Date(year, month + 1, 0).getDate(); }
+
+function dateKeyOf(year, month, day) {
+  return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
+// ломаная линия «пуллы по дням»: сегмент зелёный (рост), красный (падение), жёлтый (без изменений).
+// ось X — все дни выбранного месяца; дни без снапшота дают разрыв линии (не соединяются).
 function renderHistory() {
   const chart = document.getElementById('histChart');
   const empty = document.getElementById('histEmpty');
+  const monthLabel = document.getElementById('histMonthLabel');
+  const prevBtn = document.getElementById('histPrev');
+  const nextBtn = document.getElementById('histNext');
   if (!chart) return;
+
   const history = loadHistory();
-  if (history.length < 2) {
+  if (!histCursor) histCursor = latestHistMonth(history);
+
+  if (monthLabel) monthLabel.textContent = `${MONTH_NAMES[histCursor.month]} ${histCursor.year}`;
+  // запрещаем листать вперёд дальше месяца с последним снапшотом (нет смысла показывать пустое будущее)
+  if (nextBtn) {
+    const latest = latestHistMonth(history);
+    const atLatest = histCursor.year === latest.year && histCursor.month === latest.month;
+    nextBtn.disabled = atLatest;
+  }
+
+  const byDate = {};
+  history.forEach(h => { byDate[h.date] = h; });
+
+  const nDays = daysInMonth(histCursor.year, histCursor.month);
+  const monthPoints = [];
+  for (let d = 1; d <= nDays; d++) {
+    const key = dateKeyOf(histCursor.year, histCursor.month, d);
+    monthPoints.push({ day: d, h: byDate[key] || null });
+  }
+  const known = monthPoints.filter(p => p.h);
+
+  if (known.length === 0) {
     chart.innerHTML = '';
-    if (empty) { empty.style.display = ''; empty.textContent = history.length ? '// нужно хотя бы 2 снапшота для графика' : '// нет сохранённых снапшотов'; }
+    if (empty) { empty.style.display = ''; empty.textContent = '// нет сохранённых снапшотов за этот месяц'; }
     return;
   }
   if (empty) empty.style.display = 'none';
 
   const W = 1000, H = 240, padX = 24, padTop = 20, padBottom = 36;
-  const max = Math.max(...history.map(h => h.pulls), 1);
-  const min = Math.min(...history.map(h => h.pulls), 0);
+  const max = Math.max(...known.map(p => p.h.pulls), 1);
+  const min = Math.min(...known.map(p => p.h.pulls), 0);
   const range = Math.max(1, max - min);
-  const n = history.length;
-  const stepX = n > 1 ? (W - padX * 2) / (n - 1) : 0;
-  const xAt = i => padX + i * stepX;
+  const stepX = nDays > 1 ? (W - padX * 2) / (nDays - 1) : 0;
+  const xAt = day => padX + (day - 1) * stepX;
   const yAt = v => H - padBottom - ((v - min) / range) * (H - padTop - padBottom);
 
-  const points = history.map((h, i) => ({ x: xAt(i), y: yAt(h.pulls), h }));
+  monthPoints.forEach(p => { p.x = xAt(p.day); p.y = p.h ? yAt(p.h.pulls) : null; });
 
-  // сетка: 4 горизонтальные линии по значению + вертикальная под каждой точкой
+  // сетка: 4 горизонтальные линии по значению + вертикальная под каждым днём с данными
   let grid = '';
   const GRID_ROWS = 4;
   for (let i = 0; i <= GRID_ROWS; i++) {
     const y = padTop + (i / GRID_ROWS) * (H - padTop - padBottom);
     grid += `<line class="hist-grid-line" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"></line>`;
   }
-  points.forEach(p => {
+  monthPoints.forEach(p => {
     grid += `<line class="hist-grid-line" x1="${p.x}" y1="${padTop}" x2="${p.x}" y2="${H - padBottom}"></line>`;
   });
 
+  // сегменты только между СОСЕДНИМИ известными точками (пропуски рвут линию, не соединяют её)
   let segs = '';
-  for (let i = 1; i < points.length; i++) {
-    const a = points[i - 1], b = points[i];
+  for (let i = 1; i < known.length; i++) {
+    const a = known[i - 1], b = known[i];
     const diff = b.h.pulls - a.h.pulls;
     const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
     segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke-dasharray="1" stroke-dashoffset="1" pathLength="1"></line>`;
@@ -527,12 +581,15 @@ function renderHistory() {
 
   let dots = '';
   let labels = '';
-  points.forEach((p, i) => {
-    const prev = i > 0 ? points[i - 1].h : null;
+  known.forEach((p, i) => {
+    const prev = i > 0 ? known[i - 1].h : null;
     dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip='${histTipHtml(p.h, prev)}'></circle>`;
-    // подписи дат прореживаем, если точек много
-    const showLabel = n <= 10 || i === 0 || i === n - 1 || i % Math.ceil(n / 10) === 0;
-    if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${fmtHistDate(p.h.date)}</text>`;
+  });
+  // подписи дат: прореживаем по всем дням месяца, чтобы не наезжали друг на друга
+  const labelStep = Math.max(1, Math.ceil(nDays / 10));
+  monthPoints.forEach((p, i) => {
+    const showLabel = i === 0 || i === nDays - 1 || p.day % labelStep === 0;
+    if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === nDays - 1 ? 'end' : 'middle'}">${p.day}</text>`;
   });
 
   chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hist-svg">${grid}${segs}${dots}${labels}</svg>`;
@@ -540,11 +597,28 @@ function renderHistory() {
   // анимация «дорисовки» линии слева направо
   requestAnimationFrame(() => {
     chart.querySelectorAll('.hist-seg').forEach((el, i) => {
-      setTimeout(() => { el.style.strokeDashoffset = '0'; }, i * 120);
+      setTimeout(() => { el.style.strokeDashoffset = '0'; }, i * 60);
     });
   });
 
   attachHistTip(chart);
+}
+
+function shiftHistMonth(delta) {
+  if (!histCursor) histCursor = latestHistMonth(loadHistory());
+  let { year, month } = histCursor;
+  month += delta;
+  if (month < 0) { month = 11; year--; }
+  if (month > 11) { month = 0; year++; }
+  histCursor = { year, month };
+  renderHistory();
+}
+
+function initHistNav() {
+  const prevBtn = document.getElementById('histPrev');
+  const nextBtn = document.getElementById('histNext');
+  if (prevBtn) prevBtn.addEventListener('click', () => shiftHistMonth(-1));
+  if (nextBtn) nextBtn.addEventListener('click', () => shiftHistMonth(1));
 }
 
 // строит HTML тултипа: дата + пуллы/ороберил/ориджеметрий с цветной дельтой к предыдущему снапшоту
@@ -632,6 +706,7 @@ function initCalc() {
   loadState();              // сначала поднимаем сохранённое
   loadLastSaved();          // снапшот последнего явного сохранения (для индикатора dirty)
   initSaveButton();
+  initHistNav();
   renderHistory();
   initPages();
   buildLoginToggles();      // читают state.login

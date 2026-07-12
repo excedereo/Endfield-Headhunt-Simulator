@@ -212,7 +212,12 @@
         <div class="ybanner"><span>HISTORY</span><div class="ybanner-tech">▮▯ SAVED SNAPSHOTS / BY DAY</div></div>
         <div class="panel-body">
           <div class="hist-head">
-            <div class="hist-title">ПУЛЛЫ ПО ДНЯМ<span class="info" tabindex="0" data-info="Сколько пуллов было накоплено (по сохранённым снапшотам калькулятора) на каждый день. Показывает последний снапшот за день.">?</span></div>
+            <div class="hist-title">ПУЛЛЫ ПО ДНЯМ<span class="info" tabindex="0" data-info="Сколько пуллов было накоплено (по сохранённым снапшотам калькулятора) на каждый день выбранного месяца. Дни без снапшота — разрыв линии.">?</span></div>
+            <div class="hist-nav">
+              <button class="hist-nav-btn" id="histPrev" title="Предыдущий месяц">◂</button>
+              <div class="hist-month" id="histMonthLabel"></div>
+              <button class="hist-nav-btn" id="histNext" title="Следующий месяц">▸</button>
+            </div>
             <div class="hist-empty" id="histEmpty">// нет сохранённых снапшотов</div>
           </div>
           <div class="hist-chart" id="histChart"></div>
