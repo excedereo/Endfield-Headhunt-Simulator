@@ -346,7 +346,11 @@ function recalc() {
   const totalPulls = loginPulls + apcPulls + basePulls + oroPulls + donatePulls;
 
   // сохраняем итог пуллов, чтобы симулятор мог его подставить кнопкой «Мои пуллы»
-  try { localStorage.setItem('endfield_my_pulls', String(totalPulls)); } catch (e) {}
+  try {
+    localStorage.setItem('endfield_my_pulls', String(totalPulls));
+    localStorage.setItem('endfield_my_oro', String(Math.round(oroTotal)));
+    localStorage.setItem('endfield_my_orig', String(Math.round(origTotal)));
+  } catch (e) {}
   const mc = document.getElementById('mineCount');
   if (mc) mc.textContent = totalPulls.toLocaleString('ru');
 
@@ -450,12 +454,14 @@ function loadHistory() {
 // сохраняет снапшот: фиксирует состояние + записывает точку в историю по дню (перезаписывая сегодняшнюю)
 function saveSnapshot() {
   const totalPulls = parseInt(localStorage.getItem('endfield_my_pulls') || '0', 10) || 0;
+  const oro = parseInt(localStorage.getItem('endfield_my_oro') || '0', 10) || 0;
+  const orig = parseInt(localStorage.getItem('endfield_my_orig') || '0', 10) || 0;
   const today = new Date();
   const dateKey = today.toISOString().slice(0, 10); // YYYY-MM-DD
 
   const history = loadHistory();
   const idx = history.findIndex(h => h.date === dateKey);
-  const entry = { date: dateKey, pulls: totalPulls };
+  const entry = { date: dateKey, pulls: totalPulls, oro, orig };
   if (idx >= 0) history[idx] = entry; else history.push(entry);
   history.sort((a, b) => a.date.localeCompare(b.date));
   // храним последние 30 точек
@@ -500,6 +506,17 @@ function renderHistory() {
 
   const points = history.map((h, i) => ({ x: xAt(i), y: yAt(h.pulls), h }));
 
+  // сетка: 4 горизонтальные линии по значению + вертикальная под каждой точкой
+  let grid = '';
+  const GRID_ROWS = 4;
+  for (let i = 0; i <= GRID_ROWS; i++) {
+    const y = padTop + (i / GRID_ROWS) * (H - padTop - padBottom);
+    grid += `<line class="hist-grid-line" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"></line>`;
+  }
+  points.forEach(p => {
+    grid += `<line class="hist-grid-line" x1="${p.x}" y1="${padTop}" x2="${p.x}" y2="${H - padBottom}"></line>`;
+  });
+
   let segs = '';
   for (let i = 1; i < points.length; i++) {
     const a = points[i - 1], b = points[i];
@@ -511,17 +528,14 @@ function renderHistory() {
   let dots = '';
   let labels = '';
   points.forEach((p, i) => {
-    const prev = i > 0 ? points[i - 1].h.pulls : null;
-    const diff = prev === null ? null : p.h.pulls - prev;
-    const diffTxt = diff === null ? '' : (diff > 0 ? ` (+${diff.toLocaleString('ru')})` : diff < 0 ? ` (${diff.toLocaleString('ru')})` : ' (0)');
-    const tip = `${fmtHistDate(p.h.date)}: ${p.h.pulls.toLocaleString('ru')} пуллов${diffTxt}`;
-    dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip="${tip}"></circle>`;
+    const prev = i > 0 ? points[i - 1].h : null;
+    dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip='${histTipHtml(p.h, prev)}'></circle>`;
     // подписи дат прореживаем, если точек много
     const showLabel = n <= 10 || i === 0 || i === n - 1 || i % Math.ceil(n / 10) === 0;
     if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${fmtHistDate(p.h.date)}</text>`;
   });
 
-  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hist-svg">${segs}${dots}${labels}</svg>`;
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hist-svg">${grid}${segs}${dots}${labels}</svg>`;
 
   // анимация «дорисовки» линии слева направо
   requestAnimationFrame(() => {
@@ -531,6 +545,26 @@ function renderHistory() {
   });
 
   attachHistTip(chart);
+}
+
+// строит HTML тултипа: дата + пуллы/ороберил/ориджеметрий с цветной дельтой к предыдущему снапшоту
+function histTipLine(label, value, prevValue) {
+  const diff = prevValue === null || prevValue === undefined ? null : value - prevValue;
+  let diffHtml = '';
+  if (diff !== null) {
+    const cls = diff > 0 ? 'ht-up' : diff < 0 ? 'ht-down' : 'ht-flat';
+    const sign = diff > 0 ? '+' : '';
+    diffHtml = ` <span class="${cls}">(${sign}${diff.toLocaleString('ru')})</span>`;
+  }
+  return `<div class="ht-row"><span class="ht-label">${label}</span> ${value.toLocaleString('ru')}${diffHtml}</div>`;
+}
+function histTipHtml(h, prev) {
+  const date = `<div class="ht-date">${fmtHistDate(h.date)}</div>`;
+  const rows = histTipLine('Пуллы', h.pulls, prev ? prev.pulls : null)
+    + histTipLine('Ороберил', h.oro || 0, prev ? (prev.oro || 0) : null)
+    + histTipLine('Ориджеметрий', h.orig || 0, prev ? (prev.orig || 0) : null);
+  // экранируем для безопасной вставки в data-атрибут (одинарные кавычки в разметке уже не используются внутри)
+  return (date + rows).replace(/'/g, '&#39;');
 }
 
 // тултип для точек графика истории (переиспользует общий #histoTip)
@@ -545,11 +579,11 @@ function attachHistTip(host) {
   host.addEventListener('mousemove', e => {
     const dot = e.target.closest('.hist-dot');
     if (!dot) { tip.classList.remove('show'); return; }
-    tip.textContent = dot.dataset.tip;
-    tip.classList.add('show');
+    tip.innerHTML = dot.dataset.tip;
+    tip.classList.add('show', 'hist-tip-rich');
     placeTip(tip, e.clientX, e.clientY);
   });
-  host.addEventListener('mouseleave', () => tip.classList.remove('show'));
+  host.addEventListener('mouseleave', () => { tip.classList.remove('show', 'hist-tip-rich'); });
 }
 
 function initSaveButton() {

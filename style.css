@@ -328,6 +328,15 @@ body{
 .histo-tip.info-tip{white-space:normal;max-width:280px;line-height:1.5;font-size:11.5px;
   border-color:var(--yellow);text-align:left}
 
+/* многострочный тултип графика истории (дата + пуллы/ороберил/ориджеметрий с дельтой) */
+.histo-tip.hist-tip-rich{white-space:normal;text-align:left;padding:8px 12px;border-color:var(--yellow)}
+.ht-date{font-weight:700;color:var(--yellow);margin-bottom:4px;letter-spacing:.04em}
+.ht-row{display:flex;gap:6px;white-space:nowrap}
+.ht-label{color:var(--gray)}
+.ht-up{color:#3ecf6a}
+.ht-down{color:#ff4d4d}
+.ht-flat{color:var(--yellow)}
+
 /* инфо-значок (?) рядом с лейблами — SVG-иконка через mask (идеальная центровка) */
 .info{display:inline-block;width:15px;height:15px;margin-left:6px;cursor:help;
   vertical-align:middle;transition:.15s;outline:none;-webkit-tap-highlight-color:transparent;
@@ -562,11 +571,12 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .hist-chart{height:220px;padding-top:8px}
 .hist-chart:empty{display:none}
 .hist-svg{width:100%;height:100%;overflow:visible}
+.hist-grid-line{stroke:var(--gray-l);stroke-width:1}
 .hist-seg{stroke-width:2.5;fill:none;stroke-linecap:round;
   transition:stroke-dashoffset .5s cubic-bezier(.2,.8,.2,1)}
-.hist-seg-up{stroke:#4ade80}
-.hist-seg-down{stroke:var(--six)}
-.hist-seg-flat{stroke:#4a9eff}
+.hist-seg-up{stroke:#3ecf6a}
+.hist-seg-down{stroke:#ff4d4d}
+.hist-seg-flat{stroke:var(--yellow)}
 .hist-dot{fill:var(--bg);stroke:var(--ink);stroke-width:1.5;cursor:pointer;
   transition:r .15s, fill .15s}
 .hist-dot:hover{fill:var(--yellow);stroke:var(--yellow);r:6}
