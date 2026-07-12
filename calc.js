@@ -56,6 +56,9 @@ function navTo(page) {
     t.classList.toggle('active', active);
   });
   window.scrollTo({ top: 0, behavior: 'smooth' });
+  // при показе калькулятора перерисовываем график — пока page-calc был hidden (display:none),
+  // histChart имел clientWidth/Height 0, так что viewBox мог быть построен по фолбэк-размеру
+  if (page === 'calc' && typeof renderHistory === 'function') renderHistory();
 }
 window.navTo = navTo;
 
@@ -541,26 +544,19 @@ function renderHistory() {
     monthPoints.push({ day: d, h: byDate[key] || null });
   }
   const known = monthPoints.filter(p => p.h);
+  // текст-заглушка только когда снапшотов не сохранено вообще ни одного (не только в этом месяце) —
+  // для пустых месяцев с непустой историей показываем просто сетку без точек
+  if (empty) empty.style.display = history.length === 0 ? '' : 'none';
 
-  if (known.length === 0) {
-    chart.innerHTML = '';
-    if (empty) { empty.style.display = ''; empty.textContent = '// нет сохранённых снапшотов за этот месяц'; }
-    return;
-  }
-  if (empty) empty.style.display = 'none';
-
-  // viewBox = реальный размер контейнера в CSS-пикселях, чтобы stroke-width/радиусы/текст не масштабировались
+  // viewBox = реальный размер контейнера в CSS-пикселях, чтобы stroke-width/радиусы/текст не масштабировались.
+  // .hist-chart имеет фиксированную высоту в CSS и не зависит от содержимого, поэтому clientWidth/Height
+  // всегда актуальны здесь, даже для пустых месяцев (без единого сохранённого снапшота).
   const W = Math.max(320, chart.clientWidth), H = Math.max(160, chart.clientHeight), padX = 24, padTop = 20, padBottom = 36;
-  const max = Math.max(...known.map(p => p.h.pulls), 1);
-  const min = Math.min(...known.map(p => p.h.pulls), 0);
-  const range = Math.max(1, max - min);
   const stepX = nDays > 1 ? (W - padX * 2) / (nDays - 1) : 0;
   const xAt = day => padX + (day - 1) * stepX;
-  const yAt = v => H - padBottom - ((v - min) / range) * (H - padTop - padBottom);
 
-  monthPoints.forEach(p => { p.x = xAt(p.day); p.y = p.h ? yAt(p.h.pulls) : null; });
-
-  // сетка: 4 горизонтальные линии по значению + вертикальная под каждым днём с данными
+  // сетка (горизонтальные + вертикальные линии) рисуется всегда — даже для пустого месяца,
+  // просто без точек/подписей значений
   let grid = '';
   const GRID_ROWS = 4;
   for (let i = 0; i <= GRID_ROWS; i++) {
@@ -568,32 +564,39 @@ function renderHistory() {
     grid += `<line class="hist-grid-line" x1="${padX}" y1="${y}" x2="${W - padX}" y2="${y}"></line>`;
   }
   monthPoints.forEach(p => {
+    p.x = xAt(p.day);
     grid += `<line class="hist-grid-line" x1="${p.x}" y1="${padTop}" x2="${p.x}" y2="${H - padBottom}"></line>`;
   });
 
-  // сегменты только между СОСЕДНИМИ известными точками (пропуски рвут линию, не соединяют её)
-  let segs = '';
-  for (let i = 1; i < known.length; i++) {
-    const a = known[i - 1], b = known[i];
-    const diff = b.h.pulls - a.h.pulls;
-    const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
-    segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"></line>`;
+  let segs = '', dots = '', labels = '';
+
+  if (known.length > 0) {
+    const max = Math.max(...known.map(p => p.h.pulls), 1);
+    const min = Math.min(...known.map(p => p.h.pulls), 0);
+    const range = Math.max(1, max - min);
+    const yAt = v => H - padBottom - ((v - min) / range) * (H - padTop - padBottom);
+    known.forEach(p => { p.y = yAt(p.h.pulls); });
+
+    // сегменты только между СОСЕДНИМИ известными точками (пропуски рвут линию, не соединяют её)
+    for (let i = 1; i < known.length; i++) {
+      const a = known[i - 1], b = known[i];
+      const diff = b.h.pulls - a.h.pulls;
+      const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
+      segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"></line>`;
+    }
+
+    known.forEach((p, i) => {
+      const prev = i > 0 ? known[i - 1].h : null;
+      dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip='${histTipHtml(p.h, prev)}'></circle>`;
+    });
+    // подписи дат: прореживаем по всем дням месяца, чтобы не наезжали друг на друга
+    const labelStep = Math.max(1, Math.ceil(nDays / 10));
+    monthPoints.forEach((p, i) => {
+      const showLabel = i === 0 || i === nDays - 1 || p.day % labelStep === 0;
+      if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === nDays - 1 ? 'end' : 'middle'}">${p.day}</text>`;
+    });
   }
 
-  let dots = '';
-  let labels = '';
-  known.forEach((p, i) => {
-    const prev = i > 0 ? known[i - 1].h : null;
-    dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip='${histTipHtml(p.h, prev)}'></circle>`;
-  });
-  // подписи дат: прореживаем по всем дням месяца, чтобы не наезжали друг на друга
-  const labelStep = Math.max(1, Math.ceil(nDays / 10));
-  monthPoints.forEach((p, i) => {
-    const showLabel = i === 0 || i === nDays - 1 || p.day % labelStep === 0;
-    if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === nDays - 1 ? 'end' : 'middle'}">${p.day}</text>`;
-  });
-
-  // CSS @keyframes на классе .hist-svg проигрывается автоматически при вставке в DOM
   chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="hist-svg">${grid}${segs}${dots}${labels}</svg>`;
 
   attachHistTip(chart);
