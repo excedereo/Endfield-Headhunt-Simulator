@@ -553,22 +553,24 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .save-status.dirty{color:var(--six)}
 .save-status.saved{color:var(--cyan)}
 
-/* график «пуллы по дням» */
+/* график «пуллы по дням» — ломаная линия, сегменты цветные по знаку изменения */
 .history-panel{margin-bottom:22px}
 .hist-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:16px}
 .hist-title{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--ink2);
   display:flex;align-items:center;gap:8px}
 .hist-empty{font-family:var(--mono);font-size:11px;color:var(--gray)}
-.hist-chart{display:flex;align-items:flex-end;gap:6px;height:120px;padding-top:8px}
+.hist-chart{height:220px;padding-top:8px}
 .hist-chart:empty{display:none}
-.hist-col{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
-  height:100%;min-width:0;cursor:default}
-.hist-bar-wrap{flex:1;display:flex;align-items:flex-end;width:100%;justify-content:center}
-.hist-bar{width:60%;min-width:6px;background:var(--six);border-radius:3px 3px 0 0;
-  transition:height .5s cubic-bezier(.2,.8,.2,1);position:relative}
-.hist-col:hover .hist-bar{background:var(--yellow)}
-.hist-val{font-family:var(--mono);font-size:10px;color:var(--gray);margin-bottom:4px;white-space:nowrap}
-.hist-date{font-family:var(--mono);font-size:9px;color:var(--gray);margin-top:8px;letter-spacing:.02em;white-space:nowrap}
+.hist-svg{width:100%;height:100%;overflow:visible}
+.hist-seg{stroke-width:2.5;fill:none;stroke-linecap:round;
+  transition:stroke-dashoffset .5s cubic-bezier(.2,.8,.2,1)}
+.hist-seg-up{stroke:#4ade80}
+.hist-seg-down{stroke:var(--six)}
+.hist-seg-flat{stroke:#4a9eff}
+.hist-dot{fill:var(--bg);stroke:var(--ink);stroke-width:1.5;cursor:pointer;
+  transition:r .15s, fill .15s}
+.hist-dot:hover{fill:var(--yellow);stroke:var(--yellow);r:6}
+.hist-label{font-family:var(--mono);font-size:9px;fill:var(--gray);letter-spacing:.02em}
 
 /* нижний бар и меню-симулятора — только на мобиле, на десктопе спрятаны */
 .tabbar{display:none}

@@ -476,31 +476,80 @@ function fmtHistDate(dateKey) {
   return `${d}.${m}`;
 }
 
+// ломаная линия «пуллы по дням»: сегмент зелёный (рост), красный (падение), синий (без изменений)
 function renderHistory() {
   const chart = document.getElementById('histChart');
   const empty = document.getElementById('histEmpty');
   if (!chart) return;
   const history = loadHistory();
-  if (!history.length) {
+  if (history.length < 2) {
     chart.innerHTML = '';
-    if (empty) empty.style.display = '';
+    if (empty) { empty.style.display = ''; empty.textContent = history.length ? '// нужно хотя бы 2 снапшота для графика' : '// нет сохранённых снапшотов'; }
     return;
   }
   if (empty) empty.style.display = 'none';
+
+  const W = 1000, H = 240, padX = 24, padTop = 20, padBottom = 36;
   const max = Math.max(...history.map(h => h.pulls), 1);
-  chart.innerHTML = history.map(h => {
-    const pct = Math.max(4, Math.round(h.pulls / max * 100));
-    return `<div class="hist-col" title="${fmtHistDate(h.date)}: ${h.pulls.toLocaleString('ru')} пуллов">
-      <div class="hist-val">${h.pulls.toLocaleString('ru')}</div>
-      <div class="hist-bar-wrap"><div class="hist-bar" style="height:0%" data-pct="${pct}"></div></div>
-      <div class="hist-date">${fmtHistDate(h.date)}</div>
-    </div>`;
-  }).join('');
+  const min = Math.min(...history.map(h => h.pulls), 0);
+  const range = Math.max(1, max - min);
+  const n = history.length;
+  const stepX = n > 1 ? (W - padX * 2) / (n - 1) : 0;
+  const xAt = i => padX + i * stepX;
+  const yAt = v => H - padBottom - ((v - min) / range) * (H - padTop - padBottom);
+
+  const points = history.map((h, i) => ({ x: xAt(i), y: yAt(h.pulls), h }));
+
+  let segs = '';
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1], b = points[i];
+    const diff = b.h.pulls - a.h.pulls;
+    const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
+    segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke-dasharray="1" stroke-dashoffset="1" pathLength="1"></line>`;
+  }
+
+  let dots = '';
+  let labels = '';
+  points.forEach((p, i) => {
+    const prev = i > 0 ? points[i - 1].h.pulls : null;
+    const diff = prev === null ? null : p.h.pulls - prev;
+    const diffTxt = diff === null ? '' : (diff > 0 ? ` (+${diff.toLocaleString('ru')})` : diff < 0 ? ` (${diff.toLocaleString('ru')})` : ' (0)');
+    const tip = `${fmtHistDate(p.h.date)}: ${p.h.pulls.toLocaleString('ru')} пуллов${diffTxt}`;
+    dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip="${tip}"></circle>`;
+    // подписи дат прореживаем, если точек много
+    const showLabel = n <= 10 || i === 0 || i === n - 1 || i % Math.ceil(n / 10) === 0;
+    if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}">${fmtHistDate(p.h.date)}</text>`;
+  });
+
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hist-svg">${segs}${dots}${labels}</svg>`;
+
+  // анимация «дорисовки» линии слева направо
   requestAnimationFrame(() => {
-    chart.querySelectorAll('.hist-bar').forEach((el, i) => {
-      setTimeout(() => { el.style.height = el.dataset.pct + '%'; }, i * 40);
+    chart.querySelectorAll('.hist-seg').forEach((el, i) => {
+      setTimeout(() => { el.style.strokeDashoffset = '0'; }, i * 120);
     });
   });
+
+  attachHistTip(chart);
+}
+
+// тултип для точек графика истории (переиспользует общий #histoTip)
+function attachHistTip(host) {
+  let tip = document.getElementById('histoTip');
+  if (!tip) {
+    tip = document.createElement('div');
+    tip.id = 'histoTip';
+    tip.className = 'histo-tip';
+    document.body.appendChild(tip);
+  }
+  host.addEventListener('mousemove', e => {
+    const dot = e.target.closest('.hist-dot');
+    if (!dot) { tip.classList.remove('show'); return; }
+    tip.textContent = dot.dataset.tip;
+    tip.classList.add('show');
+    placeTip(tip, e.clientX, e.clientY);
+  });
+  host.addEventListener('mouseleave', () => tip.classList.remove('show'));
 }
 
 function initSaveButton() {
