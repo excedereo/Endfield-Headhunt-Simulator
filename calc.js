@@ -549,7 +549,8 @@ function renderHistory() {
   }
   if (empty) empty.style.display = 'none';
 
-  const W = 1000, H = 240, padX = 24, padTop = 20, padBottom = 36;
+  // viewBox = реальный размер контейнера в CSS-пикселях, чтобы stroke-width/радиусы/текст не масштабировались
+  const W = Math.max(320, chart.clientWidth), H = Math.max(160, chart.clientHeight), padX = 24, padTop = 20, padBottom = 36;
   const max = Math.max(...known.map(p => p.h.pulls), 1);
   const min = Math.min(...known.map(p => p.h.pulls), 0);
   const range = Math.max(1, max - min);
@@ -576,7 +577,7 @@ function renderHistory() {
     const a = known[i - 1], b = known[i];
     const diff = b.h.pulls - a.h.pulls;
     const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
-    segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}" stroke-dasharray="1" stroke-dashoffset="1" pathLength="1"></line>`;
+    segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"></line>`;
   }
 
   let dots = '';
@@ -592,14 +593,8 @@ function renderHistory() {
     if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === nDays - 1 ? 'end' : 'middle'}">${p.day}</text>`;
   });
 
-  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="hist-svg">${grid}${segs}${dots}${labels}</svg>`;
-
-  // анимация «дорисовки» линии слева направо
-  requestAnimationFrame(() => {
-    chart.querySelectorAll('.hist-seg').forEach((el, i) => {
-      setTimeout(() => { el.style.strokeDashoffset = '0'; }, i * 60);
-    });
-  });
+  // CSS @keyframes на классе .hist-svg проигрывается автоматически при вставке в DOM
+  chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="hist-svg">${grid}${segs}${dots}${labels}</svg>`;
 
   attachHistTip(chart);
 }
@@ -619,6 +614,17 @@ function initHistNav() {
   const nextBtn = document.getElementById('histNext');
   if (prevBtn) prevBtn.addEventListener('click', () => shiftHistMonth(-1));
   if (nextBtn) nextBtn.addEventListener('click', () => shiftHistMonth(1));
+  // viewBox завязан на реальные пиксели контейнера — при первом рендере (сразу после снятия
+  // прелоадера) clientWidth может быть ещё 0, поэтому перерисовываем следующим тиком.
+  // setTimeout вместо requestAnimationFrame — rAF не гарантированно тикает в фоновых/неактивных вкладках.
+  setTimeout(renderHistory, 0);
+  // перерисовываем и при ресайзе окна (debounce, без ResizeObserver — он зацикливался
+  // с перезаписью innerHTML на некоторых движках)
+  let resizeTimer = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(renderHistory, 200);
+  });
 }
 
 // строит HTML тултипа: дата + пуллы/ороберил/ориджеметрий с цветной дельтой к предыдущему снапшоту
