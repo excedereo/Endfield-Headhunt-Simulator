@@ -166,7 +166,7 @@ function renderWeaponDetailed(r, p) {
       e.milestoneEvents.forEach(m => {
         const label = m === 'box' ? 'Пополнение арсенала (выбор 6★)' : 'Гарант rate-up (milestone)';
         rows += `<div class="ev ev-token-row"><span class="ev-n">#${String(e.supply).padStart(3,'0')}</span>
-          <span class="ev-l"><img src="icons/Arsenal_Ticket.png" class="ev-ic"> ${label}</span></div>`;
+          <span class="ev-l"><img src="icons/88px-Arsenal_Ticket_icon.png" class="ev-ic"> ${label}</span></div>`;
       });
     }
   }
@@ -184,7 +184,7 @@ function renderWeaponDetailed(r, p) {
       ${potCard}
       ${statCard('КОПИЙ RATE-UP', r.rateupCopies, { icon: ICON.layers, info: 'Сколько раз за этот заход выпало именно rate-up оружие (натурально + гаранты).' })}
       ${statCard('СТАНДАРТНЫХ 6★', r.std6Copies, { icon: ICON.hashtag, info: 'Сколько раз выпало 6★ оружие без высокого шанса (не rate-up).' })}
-      ${statCard('ТАЛОНОВ АПК', r.aicTickets, { icon: 'icons/AIC_Quota.png', info: 'Талоны АПК за все 5★/6★ предметы этого захода: 6★ → 50, 5★ → 10.' })}
+      ${statCard('ТАЛОНОВ АПК', r.aicTickets, { icon: 'icons/88px-AIC_Quota_icon.png', info: 'Талоны АПК за все 5★/6★ предметы этого захода: 6★ → 50, 5★ → 10.' })}
     </div>
     <div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div>
     <div class="evlog">${rows}</div>`;
@@ -217,8 +217,8 @@ function renderWeaponMonte(r, p) {
       ${statCard('ШАНС ≥1 RATE-UP', r.pRateup*100, { decimals: 2, suffix: '%', icon: ICON.percent, pctColor: true, info: 'Доля прогонов, где выпала хотя бы одна копия rate-up оружия за указанное число поставок.' })}
       ${statCard('СРЕД. КОПИЙ RATE-UP', r.avgRateup, { decimals: 2, icon: ICON.layers, info: 'Среднее число копий rate-up оружия по всем прогонам.' })}
       ${dualStatCard(
-          'СРЕД. ТАЛОНОВ АПК', r.avgAic.toFixed(1), 'icons/AIC_Quota.png',
-          'СРЕД. ПРЕМИУМ-ТАЛОНОВ', r.avgPremium.toFixed(1), 'icons/Endpoint_Quota.png', { icon2Native: true })}
+          'СРЕД. ТАЛОНОВ АПК', r.avgAic.toFixed(1), 'icons/88px-AIC_Quota_icon.png',
+          'СРЕД. ПРЕМИУМ-ТАЛОНОВ', r.avgPremium.toFixed(1), 'icons/88px-Endpoint_Quota_icon.png', { icon2Native: true })}
     </div>
     <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ ПОТЕНЦИАЛА<span class="info" tabindex="0" data-info="Какая доля прогонов закончилась на каждой фазе потенциала E0–E5 rate-up оружия (и сколько вообще не получили его). Показывает не «сколько в среднем», а весь разброс исходов.">?</span></div>
     <div class="dist" id="wDistChart">${bars}</div>

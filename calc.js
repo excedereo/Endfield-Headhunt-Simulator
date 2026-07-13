@@ -20,12 +20,66 @@ const DONATES = [
   { name: 'Коробка', amt: 92, price: 2990, dbl: true, img: 'orid_5.png' },
   { name: 'Ящик', amt: 194, price: 5990, dbl: true, img: 'orid_6.png' },
   { name: 'Штабель', amt: 320, bonus: 80, price: 9990, dbl: true, img: 'orid_7.png' },
-  { name: 'Месячный пропуск', price: 449, dbl: false, img: 'monthly_pass.png', pass: true },
   { name: 'Набор «Протокол потока»', amt: 0, price: 2490, dbl: false, img: 'flow_protocol.png', pulls: 10, arsenal: 2000, limit: 1 },
 ];
 
 // параметры месячного пропуска: 12 ◈ за месяц + 200 оро/день, цена помесячно
 const PASS = { price: 449, origPerMonth: 12, oroPerDay: 200, daysPerMonth: 30 };
+
+/* ── МЕСЯЧНЫЙ ПРОПУСК: живой счётчик ──
+   Пропуск ничего не «прибавляет» к введённым полям — inOro и inOrig всегда факт с экрана игры.
+   Вместо этого он ведёт ожидаемые значения обеих валют:
+     expectedOro  — растёт на 200 каждый прошедший день;
+     expectedOrig — растёт на 12 за каждый отработанный месяц (30 дней) пропуска.
+   Разница (expected − факт) = сколько игрок потратил. */
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+// сколько целых суток между двумя ключами дат (b − a)
+function daysBetween(a, b) {
+  const pa = a.split('-').map(Number), pb = b.split('-').map(Number);
+  const da = Date.UTC(pa[0], pa[1] - 1, pa[2]), db = Date.UTC(pb[0], pb[1] - 1, pb[2]);
+  return Math.round((db - da) / 86400000);
+}
+// начисляет пропущенные дни (сайт мог быть закрыт несколько суток подряд)
+function tickPass() {
+  const p = state.pass;
+  if (!p.on || !p.lastTick) return;
+  const today = todayKey();
+  const elapsed = daysBetween(p.lastTick, today);
+  if (elapsed <= 0) return;                      // тот же день — ничего не начисляем
+  const ticks = Math.min(elapsed, p.daysLeft);   // после истечения дней начисление прекращается
+  if (ticks > 0) {
+    p.expectedOro += PASS.oroPerDay * ticks;
+    p.daysElapsed += ticks;
+    p.daysLeft -= ticks;
+    // ориджеметрий капает не ежедневно, а разом за каждый отработанный 30-дневный месяц:
+    // считаем, сколько полных месяцев набралось всего, и доначисляем недостающие
+    const monthsDue = Math.floor(p.daysElapsed / PASS.daysPerMonth);
+    if (monthsDue > p.monthsPaid) {
+      p.expectedOrig += PASS.origPerMonth * (monthsDue - p.monthsPaid);
+      p.monthsPaid = monthsDue;
+    }
+  }
+  p.lastTick = today;
+}
+// включение пропуска: точка отсчёта — текущий факт обеих валют, в день включения ничего не капает
+function activatePass(days) {
+  state.pass = {
+    on: true,
+    daysLeft: Math.max(0, days | 0),
+    daysElapsed: 0,           // сколько дней пропуск уже отработал (для месячных начислений)
+    monthsPaid: 0,            // сколько 12-ориджевых выплат уже учтено
+    lastTick: todayKey(),
+    expectedOro: state.oro,   // «якорь»: сегодня ожидаем ровно то, что есть сейчас
+    expectedOrig: state.orig,
+  };
+}
+function deactivatePass() {
+  state.pass = { on: false, daysLeft: 0, daysElapsed: 0, monthsPaid: 0,
+    lastTick: null, expectedOro: 0, expectedOrig: 0 };
+}
 
 // состояние
 const state = {
@@ -33,7 +87,14 @@ const state = {
   base: 0,
   orig: 0,
   oro: 0,
-  passDays: 0,  // дней месячного пропуска
+  // ── месячный пропуск (живой счётчик реального времени) ──
+  // on: активен ли; daysLeft: сколько дней ещё капает; daysElapsed: сколько уже отработал;
+  // monthsPaid: сколько месячных выплат (12 ориджи) уже учтено;
+  // lastTick: дата последнего начисления (YYYY-MM-DD);
+  // expectedOro/expectedOrig: сколько валюты система ожидает увидеть сегодня —
+  // факт из inOro/inOrig сверяется с этим, разница = потрачено.
+  pass: { on: false, daysLeft: 0, daysElapsed: 0, monthsPaid: 0,
+          lastTick: null, expectedOro: 0, expectedOrig: 0 },
   // на каждый пакет: qty (кол-во покупок) и doubled (0/1 — бонус удвоения, даётся 1 раз)
   donates: {},  // index -> { qty, doubled }
 };
@@ -191,7 +252,7 @@ function buildLoginToggles() {
 
 /* ── ДОНАТЫ ── */
 // карточка-товар: картинка товара — фон, поверх затемнение и контент.
-// обычные — счётчик кол-ва + галка удвоения; пропуск — поле «дней».
+// счётчик кол-ва + галка удвоения. (Месячный пропуск живёт отдельной плашкой — см. buildPass.)
 function buildDonates() {
   const host = document.getElementById('donateGrid');
   host.innerHTML = '';
@@ -206,24 +267,13 @@ function buildDonates() {
     card.className = 'donate-card';
     const bonusAmt = d.bonus != null ? d.bonus : d.amt;   // бонус удвоения (у штабеля он другой)
     const isPack = d.pulls > 0;   // пакет с готовыми пуллами (Протокол потока)
-    const isPass = !!d.pass;      // месячный пропуск
-    const img = d.img ? `topup/${d.img}` : 'icons/Origeometry.png';
-    const tag = d.dbl ? 'УДВОЕНИЕ ДОСТУПНО'
-      : (isPack ? 'ВЫГОДНО · 1 РАЗ ЗА БАННЕР' : (isPass ? 'PRIME ACCESS · ПОМЕСЯЧНО' : 'ОСОБАЯ СКИДКА'));
+    const img = d.img ? `topup/${d.img}` : 'icons/88px-Origeometry_icon.png';
     // строка «что внутри»
-    const amtRow = isPass
-      ? `<div class="dc-amt"><span class="dc-base">12</span><span class="dc-cur">◈</span><span class="dc-cur dc-cur-txt">/ мес + 200 оро/день</span></div>`
-      : isPack
+    const amtRow = isPack
       ? `<div class="dc-amt"><span class="dc-base">${d.pulls}</span><span class="dc-cur dc-cur-txt">пуллов</span></div>
          <div class="dc-extra">+ ${d.arsenal.toLocaleString('ru')} билетов арсенала</div>`
       : `<div class="dc-amt"><span class="dc-base">${d.amt}</span><span class="dc-cur">◈</span></div>`;
-    // нижний контрол: пропуск — поле дней; остальные — счётчик +/-
-    const ctrlRow = isPass
-      ? `<div class="dc-qty-row">
-           <span class="dc-qty-lbl">Дней <span class="dc-pass-months" id="passMonths"></span></span>
-           <input type="number" id="inPassDays" class="dc-days" value="0" min="0" max="3650" placeholder="0">
-         </div>`
-      : `<div class="dc-qty-row">
+    const ctrlRow = `<div class="dc-qty-row">
            <span class="dc-qty-lbl">Количество</span>
            <div class="dc-qty">
              <button class="dq-btn" data-d="-">−</button>
@@ -238,7 +288,6 @@ function buildDonates() {
         <span class="dc-dbl-text">Удвоение первой покупки <b>+${bonusAmt} ◈</b></span>
       </label>` : '';
     card.innerHTML = `
-      <div class="dc-tag">${tag}</div>
       <div class="dc-bg" style="background-image:url('${img}')"></div>
       <div class="dc-content">
         <div class="dc-name">${d.name}</div>
@@ -249,22 +298,6 @@ function buildDonates() {
       </div>`;
     if (!d.dbl) card.classList.add('special');
     if (isPack) card.classList.add('pack');
-    if (isPass) card.classList.add('pass');
-
-    // ── пропуск: поле дней привязываем к state.passDays, qty карточки не используется ──
-    if (isPass) {
-      const days = card.querySelector('#inPassDays');
-      days.value = state.passDays || 0;
-      const syncActive = () => card.classList.toggle('active', (state.passDays || 0) > 0);
-      days.addEventListener('input', () => {
-        let v = parseInt(days.value, 10);
-        state.passDays = isNaN(v) || v < 0 ? 0 : v;
-        syncActive(); recalc();
-      });
-      syncActive();
-      host.appendChild(card);
-      return;
-    }
 
     const dblRow = card.querySelector('.dc-dbl');
     const dchk = card.querySelector('input[data-kind="doubled"]');
@@ -304,6 +337,69 @@ function buildDonates() {
   });
 }
 
+/* ── МЕСЯЧНЫЙ ПРОПУСК: отдельная мини-плашка ── */
+function buildPass() {
+  const chk = document.getElementById('passOn');
+  const minus = document.getElementById('passMinus');
+  const plus = document.getElementById('passPlus');
+  if (!chk) return;
+
+  chk.checked = !!state.pass.on;
+  chk.addEventListener('change', () => {
+    if (chk.checked) activatePass(state.pass.daysLeft > 0 ? state.pass.daysLeft : PASS.daysPerMonth);
+    else deactivatePass();
+    recalc();   // recalc сам зовёт renderPass
+  });
+  const bump = delta => {
+    const p = state.pass;
+    p.daysLeft = Math.max(0, Math.min(365, p.daysLeft + delta));
+    recalc();
+  };
+  minus.addEventListener('click', () => bump(-1));
+  plus.addEventListener('click', () => bump(1));
+}
+
+// перерисовка плашки пропуска: дни, ожидаемый ороберил, вывод о тратах
+function renderPass() {
+  const p = state.pass;
+  const box = document.getElementById('passBlock');
+  if (!box) return;
+  box.classList.toggle('active', p.on);
+  document.getElementById('passOn').checked = p.on;
+  document.getElementById('passDays').textContent = p.daysLeft;
+  const tg = document.getElementById('passToggle');
+  if (tg) tg.classList.toggle('on', p.on);
+
+  // шапка: сколько пропуск уже накапал за время работы (справочно, в итог не идёт)
+  const out = document.getElementById('outPass');
+  if (out) {
+    if (!p.on) out.innerHTML = '— <span>выкл</span>';
+    else out.innerHTML = `${p.daysElapsed} <span>дн. в работе</span>`;
+  }
+
+  const note = document.getElementById('passNote');
+  if (!p.on) { note.textContent = '// выключен'; note.className = 'pass-note'; return; }
+
+  // сверка по обеим валютам: ожидаемое против факта в полях
+  const dOro = p.expectedOro - state.oro;
+  const dOrig = p.expectedOrig - state.orig;
+  const bits = [];
+  if (dOro > 0) bits.push(`потрачено ${dOro.toLocaleString('ru')} оро`);
+  else if (dOro < 0) bits.push(`+${(-dOro).toLocaleString('ru')} оро сверх`);
+  if (dOrig > 0) bits.push(`потрачено ${dOrig.toLocaleString('ru')} ориджи`);
+  else if (dOrig < 0) bits.push(`+${(-dOrig).toLocaleString('ru')} ориджи сверх`);
+
+  const expired = p.daysLeft === 0;
+  const tail = expired ? ' · истёк' : '';
+  if (bits.length === 0) {
+    note.textContent = `// сходится: ждём ${p.expectedOro.toLocaleString('ru')} оро · ${p.expectedOrig.toLocaleString('ru')} ориджи${tail}`;
+    note.className = expired ? 'pass-note pass-exp' : 'pass-note pass-ok';
+  } else {
+    note.textContent = `// ${bits.join(' · ')}${tail}`;
+    note.className = (dOro > 0 || dOrig > 0) ? 'pass-note pass-spent' : 'pass-note pass-gain';
+  }
+}
+
 /* ── ИТОГОВЫЙ РАСЧЁТ ── */
 function recalc() {
   // «бесплатные пуллы» — вход + талоны АПК, объединено в 1 тумблер
@@ -314,7 +410,6 @@ function recalc() {
   let origTotal = state.orig;
   let donateAmt = 0;     // ориджеметрия из донатов
   let donatePulls = 0;   // готовые пуллы из пакетов (Протокол потока)
-  let donateOro = 0;     // ороберил из донатов (месячный пропуск)
   let moneySpent = 0;    // ₽ потрачено
   DONATES.forEach((d, i) => {
     const st = state.donates[i] || { qty: 0, doubled: 0 };
@@ -326,26 +421,34 @@ function recalc() {
     }
   });
 
-  // месячный пропуск: дни → месяцы (цена), ориджи × месяцы, ороберил × дни
-  const passDays = state.passDays || 0;
-  if (passDays > 0) {
-    const months = Math.ceil(passDays / PASS.daysPerMonth);
-    donateAmt += PASS.origPerMonth * months;   // 12 ориджи за каждый начатый месяц
-    donateOro += PASS.oroPerDay * passDays;    // 200 ороберила в день
-    moneySpent += PASS.price * months;
+  // Месячный пропуск в итог не добавляет НИЧЕГО: и ороберил, и ориджеметрий уже сидят в полях,
+  // куда игрок вбивает факт с экрана игры. Пропуск только ждёт прироста и считает траты.
+  // В расчёт от него идут лишь потраченные рубли — по числу купленных месяцев.
+  if (state.pass.on) {
+    const monthsBought = Math.max(1, Math.ceil((state.pass.daysElapsed + state.pass.daysLeft) / PASS.daysPerMonth));
+    moneySpent += PASS.price * monthsBought;
   }
 
   origTotal += donateAmt;
 
   const oroFromOrig = origTotal * RATES.ORIG_TO_OROBERYL;
-  const oroTotal = oroFromOrig + state.oro + donateOro;   // + ороберил месячного пропуска
+  const oroTotal = oroFromOrig + state.oro;
   const oroPulls = Math.floor(oroTotal / RATES.OROBERYL_PER_PULL);
 
   const totalPulls = freebiesPulls + basePulls + oroPulls + donatePulls;
 
+  // пуллы «от доната» = итог минус то, что вышло бы вообще без покупок.
+  // Считаем именно так (а не суммой донатных пуллов), потому что ороберил округляется вниз
+  // при переводе в пуллы: донат может «дотолкать» остаток до лишнего пулла.
+  const oroFree = state.orig * RATES.ORIG_TO_OROBERYL + state.oro;
+  const pullsFree = freebiesPulls + basePulls + Math.floor(oroFree / RATES.OROBERYL_PER_PULL);
+  const donatedPulls = totalPulls - pullsFree;
+
   // сохраняем итог пуллов, чтобы симулятор мог его подставить кнопкой «Мои пуллы»
+  // (в симулятор идёт полный итог — с донатом; отдельно храним «свои» для графика)
   try {
     localStorage.setItem('endfield_my_pulls', String(totalPulls));
+    localStorage.setItem('endfield_my_pulls_free', String(pullsFree));
     localStorage.setItem('endfield_my_oro', String(Math.round(oroTotal)));
     localStorage.setItem('endfield_my_orig', String(Math.round(origTotal)));
   } catch (e) {}
@@ -355,11 +458,6 @@ function recalc() {
   // обновляем выводы блоков
   setOut('outLogin', freebiesPulls, 'пуллов');
   setOut('outBase', basePulls, 'пуллов');
-  // месячный пропуск: подпись месяцев в карточке
-  const pm = document.getElementById('passMonths');
-  if (pm) pm.textContent = passDays > 0
-    ? `· ${Math.ceil(passDays / PASS.daysPerMonth)} мес · ${fmtRub(PASS.price * Math.ceil(passDays / PASS.daysPerMonth))}`
-    : '';
   // объединённый блок ороберил+ориджеметрий: пуллы от обоих (без донатов)
   const ownOro = state.oro + state.orig * RATES.ORIG_TO_OROBERYL;
   setOut('outOro', Math.floor(ownOro / RATES.OROBERYL_PER_PULL), 'пуллов');
@@ -367,7 +465,17 @@ function recalc() {
     '= ' + (state.orig * RATES.ORIG_TO_OROBERYL).toLocaleString('ru') + ' ороберила';
 
   animateTo('totalOro', oroTotal);
-  animateTo('totalPulls', totalPulls);
+  // оранжевый итог — свои крутки (без покупок); зелёный ниже — сколько станет вместе с донатом
+  animateTo('totalPulls', pullsFree);
+
+  const dpRow = document.getElementById('ctDonated');
+  if (dpRow) {
+    dpRow.classList.toggle('open', donatedPulls > 0);
+    if (donatedPulls > 0) {
+      document.getElementById('ctDonatedVal').textContent = '+' + totalPulls.toLocaleString('ru');
+      document.getElementById('ctDonatedFree').textContent = `из них ${donatedPulls.toLocaleString('ru')} за донат`;
+    }
+  }
 
   // чекаут — потрачено реальных денег
   const checkout = document.getElementById('checkout');
@@ -390,7 +498,19 @@ function recalc() {
   ].filter(p => p[1] > 0);
   bd.innerHTML = parts.map(p => `<span class="bd-item">${p[0]} <b>+${p[1]}</b></span>`).join('')
     || '<span class="bd-item bd-empty">// добавь ресурсы выше</span>';
+  // источники ороберила — расшифровка «всего ороберила», чтобы было видно, откуда взялись сотни
+  const oroSrc = document.getElementById('oroSources');
+  if (oroSrc) {
+    const src = [];
+    if (state.oro > 0) src.push(['свой', state.oro]);
+    if (state.orig > 0) src.push([`ориджи ×${RATES.ORIG_TO_OROBERYL}`, state.orig * RATES.ORIG_TO_OROBERYL]);
+    if (donateAmt > 0) src.push([`донат (${donateAmt} ориджи)`, donateAmt * RATES.ORIG_TO_OROBERYL]);
+    oroSrc.innerHTML = src.length > 1
+      ? src.map(s => `<span class="bd-item">${s[0]} <b>${s[1].toLocaleString('ru')}</b></span>`).join('')
+      : '';
+  }
 
+  renderPass();   // сверка «ожидалось / факт» живая: поле ороберила меняется → пересчитываем траты
   saveState();
 }
 
@@ -415,7 +535,20 @@ function loadState() {
       const oldApcPulls = typeof s.apc === 'number' ? s.apc : 0;
       state.freebies = (oldLoginPulls + oldApcPulls) >= FREEBIES_PULLS;
     }
-    ['base', 'orig', 'oro', 'passDays'].forEach(k => { if (typeof s[k] === 'number') state[k] = s[k]; });
+    ['base', 'orig', 'oro'].forEach(k => { if (typeof s[k] === 'number') state[k] = s[k]; });
+    // пропуск: новый формат — объект с живым счётчиком. Старое поле passDays (просто «куплю N дней»)
+    // в новую модель не переносится: там не было точки отсчёта, сверять не с чем.
+    if (s.pass && typeof s.pass === 'object') {
+      state.pass = {
+        on: !!s.pass.on,
+        daysLeft: Number(s.pass.daysLeft) || 0,
+        daysElapsed: Number(s.pass.daysElapsed) || 0,
+        monthsPaid: Number(s.pass.monthsPaid) || 0,
+        lastTick: s.pass.lastTick || null,
+        expectedOro: Number(s.pass.expectedOro) || 0,
+        expectedOrig: Number(s.pass.expectedOrig) || 0,
+      };
+    }
     if (s.donates) state.donates = s.donates;
   } catch (e) {}
 }
@@ -457,7 +590,8 @@ function loadHistory() {
 
 // сохраняет снапшот: фиксирует состояние + записывает точку в историю по дню (перезаписывая сегодняшнюю)
 function saveSnapshot() {
-  const totalPulls = parseInt(localStorage.getItem('endfield_my_pulls') || '0', 10) || 0;
+  const withDonate = parseInt(localStorage.getItem('endfield_my_pulls') || '0', 10) || 0;
+  const totalPulls = parseInt(localStorage.getItem('endfield_my_pulls_free') || '0', 10) || 0;
   const oro = parseInt(localStorage.getItem('endfield_my_oro') || '0', 10) || 0;
   const orig = parseInt(localStorage.getItem('endfield_my_orig') || '0', 10) || 0;
   const today = new Date();
@@ -465,7 +599,8 @@ function saveSnapshot() {
 
   const history = loadHistory();
   const idx = history.findIndex(h => h.date === dateKey);
-  const entry = { date: dateKey, pulls: totalPulls, oro, orig };
+  // pulls — свои крутки (основная линия графика), pullsDon — итог вместе с донатом (верхняя линия)
+  const entry = { date: dateKey, pulls: totalPulls, pullsDon: withDonate, oro, orig };
   if (idx >= 0) history[idx] = entry; else history.push(entry);
   history.sort((a, b) => a.date.localeCompare(b.date));
   // храним снапшоты за последние ~2 года (по дням, не по числу точек — график теперь месячный)
@@ -572,15 +707,28 @@ function renderHistory() {
   let segs = '', dots = '', labels = '';
 
   if (known.length > 0) {
-    const max = Math.max(...known.map(p => p.h.pulls), 1);
-    const min = Math.min(...known.map(p => p.h.pulls), 0);
-    const range = Math.max(1, max - min);
-    const yAt = v => H - padBottom - ((v - min) / range) * (H - padTop - padBottom);
-    known.forEach(p => { p.y = yAt(p.h.pulls); });
+    // ось Y растягивается ровно между фактическими min и max месяца: нижняя точка ложится на низ
+    // графика, верхняя — на верх, поэтому наклон отражает реальный разброс, а не расстояние до нуля.
+    // Единственная точка (или все значения равны) — рисуется по низу.
+    // В масштаб входят и донатные значения — иначе верхняя линия вылезала бы за поле.
+    const donOf = h => (typeof h.pullsDon === 'number' ? h.pullsDon : h.pulls);
+    const hasDon = known.some(p => donOf(p.h) > p.h.pulls);
+    const vals = known.map(p => p.h.pulls).concat(known.map(p => donOf(p.h)));
+    const max = Math.max(...vals);
+    const min = Math.min(...vals);
+    const span = max - min;
+    const yAt = span === 0
+      ? () => H - padBottom
+      : v => H - padBottom - ((v - min) / span) * (H - padTop - padBottom);
+    known.forEach(p => { p.y = yAt(p.h.pulls); p.yDon = yAt(donOf(p.h)); });
 
     // сегменты только между СОСЕДНИМИ известными точками (пропуски рвут линию, не соединяют её)
     for (let i = 1; i < known.length; i++) {
       const a = known[i - 1], b = known[i];
+      // донатная линия — отдельной графой, полупрозрачная, без точек, поверх основной
+      if (hasDon) {
+        segs += `<line class="hist-seg hist-seg-don" x1="${a.x}" y1="${a.yDon}" x2="${b.x}" y2="${b.yDon}"></line>`;
+      }
       const diff = b.h.pulls - a.h.pulls;
       const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
       segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"></line>`;
@@ -644,7 +792,10 @@ function histTipLine(label, value, prevValue) {
 }
 function histTipHtml(h, prev) {
   const date = `<div class="ht-date">${fmtHistDate(h.date)}</div>`;
+  const don = typeof h.pullsDon === 'number' ? h.pullsDon : h.pulls;
+  const prevDon = prev ? (typeof prev.pullsDon === 'number' ? prev.pullsDon : prev.pulls) : null;
   const rows = histTipLine('Пуллы', h.pulls, prev ? prev.pulls : null)
+    + (don > h.pulls ? histTipLine('С донатом', don, prevDon) : '')
     + histTipLine('Ороберил', h.oro || 0, prev ? (prev.oro || 0) : null)
     + histTipLine('Ориджеметрий', h.orig || 0, prev ? (prev.orig || 0) : null);
   // экранируем для безопасной вставки в data-атрибут (одинарные кавычки в разметке уже не используются внутри)
@@ -714,6 +865,7 @@ function bindNumber(id, key) {
 /* ── ИНИЦИАЛИЗАЦИЯ (после прелоадера) ── */
 function initCalc() {
   loadState();              // сначала поднимаем сохранённое
+  tickPass();               // догоняем пропущенные дни пропуска (сайт мог быть закрыт)
   loadLastSaved();          // снапшот последнего явного сохранения (для индикатора dirty)
   initSaveButton();
   initHistNav();
@@ -721,12 +873,12 @@ function initCalc() {
   initPages();
   buildLoginToggles();      // тумблер «бесплатные пуллы», читает state.freebies
   buildDonates();           // читают state.donates
+  buildPass();              // мини-плашка месячного пропуска
   initDonateToggle();       // секция донатов свёрнута по умолчанию
   // числовые поля — выставляем сохранённые значения
   bindNumber('inBase', 'base');
   bindNumber('inOrig', 'orig');
   bindNumber('inOro', 'oro');
-  // inPassDays привязан внутри buildDonates (карточка пропуска)
   document.getElementById('inBase').value = state.base || 0;
   document.getElementById('inOrig').value = state.orig || 0;
   document.getElementById('inOro').value = state.oro || 0;

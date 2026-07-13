@@ -322,28 +322,52 @@
         <div class="ybanner"><span>RESOURCES</span><div class="ybanner-tech">▮▯ CONVERSION CORE / 500 = 1 PULL</div></div>
         <div class="panel-body calc-body">
 
-          <!-- БЕСПЛАТНЫЕ ИСТОЧНИКИ 2×2 -->
+          <!-- ИСТОЧНИКИ 2×2 -->
           <div class="calc-grid2">
 
             <!-- 1. БЕСПЛАТНЫЕ ПУЛЛЫ (вход + талоны АПК объединены в один тумблер) -->
-            <div class="calc-block calc-block-sm">
+            <div class="calc-block">
               <div class="cb-head"><img src="icons/Basic_HH_Permit.png" class="cb-ic"><div><div class="cb-title">БЕСПЛАТНЫЕ ПУЛЛЫ<span class="info" tabindex="0" data-info="Пуллы за вход в игру (2+2+1 за первые 3 дня баннера) и талоны АПК, обменянные на пуллы — суммарно до 10 пуллов. Включи тумблер, если уже получил оба источника полностью.">?</span></div><div class="cb-sub">// вход + АПК, максимум 10</div></div><div class="cb-out" id="outLogin">0 <span>пуллов</span></div></div>
-              <div class="toggles" id="loginToggles"></div>
+              <div class="cb-body">
+                <div class="toggles" id="loginToggles"></div>
+              </div>
             </div>
 
             <!-- 2. БАЗОВЫЕ ТАЛОНЫ -->
             <div class="calc-block">
               <div class="cb-head"><img src="icons/Bond_Quota.png" class="cb-ic"><div><div class="cb-title">БАЗОВЫЕ ТАЛОНЫ<span class="info" tabindex="0" data-info="Базовые талоны (Bond Quota) капают за дубликаты операторов. Курс обмена: 25 талонов = 1 пулл. Введи, сколько их у тебя накоплено.">?</span></div><div class="cb-sub">// 25 талонов = 1 пулл</div></div><div class="cb-out" id="outBase">0 <span>пуллов</span></div></div>
-              <div class="df-col single"><label><img src="icons/Bond_Quota.png" class="df-ic">БАЗОВЫЕ ТАЛОНЫ</label><input type="number" id="inBase" value="0" min="0" placeholder="кол-во талонов" class="calc-num wide"></div>
+              <div class="cb-body">
+                <div class="df-col single"><label>КОЛИЧЕСТВО ТАЛОНОВ</label><input type="number" id="inBase" value="0" min="0" placeholder="0" class="calc-num wide"></div>
+              </div>
             </div>
 
             <!-- 3. ОРОБЕРИЛ + ОРИДЖЕМЕТРИЙ -->
             <div class="calc-block">
               <div class="cb-head"><img src="icons/Oroberyl.png" class="cb-ic"><div><div class="cb-title">ОРОБЕРИЛ / ОРИДЖЕМЕТРИЙ<span class="info" tabindex="0" data-info="Основная валюта пуллов. 500 ороберила = 1 пулл. Ориджеметрий — премиум-валюта, 1 ориджи = 75 ороберила, конвертируется автоматически и суммируется с обычным.">?</span></div><div class="cb-sub">// 500 оро = 1 пулл · 1 ориджи = 75 оро</div></div><div class="cb-out" id="outOro">0 <span>пуллов</span></div></div>
-              <div class="dual-field">
-                <div class="df-col"><label><img src="icons/Oroberyl.png" class="df-ic">ОРОБЕРИЛ</label><input type="number" id="inOro" value="0" min="0" placeholder="0" class="calc-num wide"></div>
-                <div class="df-col"><label><img src="icons/Origeometry.png" class="df-ic">ОРИДЖЕМЕТРИЙ</label><input type="number" id="inOrig" value="0" min="0" placeholder="0" class="calc-num wide"><div class="df-conv" id="outOrig">= 0 ороберила</div></div>
+              <div class="cb-body">
+                <div class="dual-field">
+                  <div class="df-col"><label><img src="icons/88px-Oroberyl_icon.png" class="df-ic">ОРОБЕРИЛ</label><input type="number" id="inOro" value="0" min="0" placeholder="0" class="calc-num wide"></div>
+                  <div class="df-col"><label><img src="icons/88px-Origeometry_icon.png" class="df-ic">ОРИДЖЕМЕТРИЙ</label><input type="number" id="inOrig" value="0" min="0" placeholder="0" class="calc-num wide"><div class="df-conv" id="outOrig">= 0 ороберила</div></div>
+                </div>
               </div>
+            </div>
+
+            <!-- 4. МЕСЯЧНЫЙ ПРОПУСК — живой счётчик: тикает 200 оро/день, сверяет ожидаемое с фактом -->
+            <div class="calc-block" id="passBlock">
+              <div class="cb-head"><img src="topup/monthly_pass.png" class="cb-ic"><div><div class="cb-title">МЕСЯЧНЫЙ ПРОПУСК<span class="info" tabindex="0" data-info="Пропуск даёт 200 ороберила в день и 12 ориджеметрия за каждый отработанный месяц. Включи тумблер — счётчик начнёт ожидать этот прирост. Поля «Ороберил» и «Ориджеметрий» всегда заполняй фактом из игры: если факт ниже ожидаемого, значит валюта была потрачена, и система это покажет. В итог пропуск ничего не добавляет — всё уже учтено в полях.">?</span></div><div class="cb-sub">// ждём +200 оро/день · +12 ориджи/мес</div></div><div class="cb-out" id="outPass">— <span>выкл</span></div></div>
+              <div class="cb-body pass-body">
+                <label class="toggle" id="passToggle">
+                  <input type="checkbox" id="passOn">
+                  <span class="tg-box"></span>
+                  <span class="tg-lbl">АКТИВЕН</span>
+                </label>
+                <div class="pass-days">
+                  <button class="pd-btn" id="passMinus">−</button>
+                  <div class="pd-val"><span id="passDays">0</span><span class="pd-lbl">дней осталось</span></div>
+                  <button class="pd-btn" id="passPlus">+</button>
+                </div>
+              </div>
+              <div class="pass-note" id="passNote">выключен</div>
             </div>
 
           </div>
@@ -364,9 +388,14 @@
               <div class="ct-label">// ВСЕГО ОРОБЕРИЛА</div>
               <div class="ct-val" id="totalOro">0</div>
             </div>
+            <div class="ct-breakdown ct-oro-src" id="oroSources"></div>
             <div class="ct-row big">
               <div class="ct-label"><img src="icons/Chartered_HH_Permit.png" class="ct-pull-ic"> // ВСЕГО ПУЛЛОВ</div>
               <div class="ct-val accent" id="totalPulls">0</div>
+            </div>
+            <div class="ct-donated" id="ctDonated">
+              <div class="ct-label">// ВМЕСТЕ С ДОНАТОМ <span class="ctd-free" id="ctDonatedFree"></span></div>
+              <div class="ct-val ctd-val" id="ctDonatedVal">+0</div>
             </div>
             <div class="ct-breakdown" id="breakdown"></div>
 

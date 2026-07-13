@@ -481,20 +481,16 @@ body{
 /* ============ КАЛЬКУЛЯТОР ============ */
 .page{animation:resIn .4s ease both}
 .calc-body{display:flex;flex-direction:column;gap:26px}
-.calc-grid2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
-@media(max-width:1100px){.calc-grid2{grid-template-columns:1fr 1fr}}
+.calc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
 @media(max-width:760px){.calc-grid2{grid-template-columns:1fr}}
 .calc-block{border:1px solid var(--line);padding:14px 16px;background:var(--surface);
-  display:flex;flex-direction:column;border-radius:10px;box-shadow:var(--shadow)}
-.calc-block-sm .cb-ic{width:36px;height:36px}
-.calc-block-sm .cb-title{font-size:13px}
-.calc-block-sm .cb-out{font-size:16px}
-.calc-grid2 .calc-block{justify-content:space-between}
+  display:flex;flex-direction:column;border-radius:10px;box-shadow:var(--shadow);transition:.18s}
+/* cb-body забирает свободную высоту и прижимает контролы к низу — низ у всех плашек ряда ровный */
+.cb-body{margin-top:auto}
 
 /* объединённое поле ороберил+ориджеметрий — рядом в одну линию */
 .dual-field{display:flex;gap:14px}
 .df-col{flex:1;display:flex;flex-direction:column}
-.df-col.single{margin-top:auto}
 .df-col label{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11.5px;
   letter-spacing:.06em;color:var(--ink2);margin-bottom:7px}
 .df-ic{width:30px;height:30px;object-fit:contain}
@@ -571,8 +567,32 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .donate-collapse > .donate-grid{overflow:hidden;min-height:0}
 .donate-block.collapsed .donate-collapse{grid-template-rows:0fr;opacity:0;margin-top:0}
 
-.donate-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
-@media(max-width:1200px){.donate-grid{grid-template-columns:repeat(3,1fr)}}
+/* ── МЕСЯЧНЫЙ ПРОПУСК: 4-я плашка сетки, живой счётчик ── */
+#passBlock.active{border-color:var(--six);box-shadow:0 0 0 1px var(--six),0 4px 16px rgba(255,122,26,.18)}
+.pass-body{display:flex;align-items:stretch;gap:10px}
+.pass-body .toggle{flex:1}
+/* ±дни: колонка с кнопками по бокам, однородна с полем ввода */
+.pass-days{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:6px;
+  overflow:hidden;background:var(--gray-bg);flex-shrink:0}
+.pd-btn{width:30px;border:none;background:var(--surface-2);color:var(--ink);font-size:16px;
+  font-weight:700;cursor:pointer;transition:.12s;display:flex;align-items:center;justify-content:center;padding:0}
+.pd-btn:hover{background:var(--yellow);color:#161616}
+.pd-val{display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-width:74px;line-height:1.1;padding:0 6px}
+.pd-val > span:first-child{font-family:var(--mono);font-weight:700;font-size:18px}
+.pd-lbl{font-family:var(--mono);font-size:9px;color:var(--gray);margin-top:2px}
+/* строка-статус сверки */
+.pass-note{font-family:var(--mono);font-size:11px;color:var(--gray);margin-top:10px}
+.pass-note.pass-ok{color:#3fbf6a}
+.pass-note.pass-spent{color:var(--six)}
+.pass-note.pass-gain{color:#4a9eff}
+.pass-note.pass-exp{color:var(--gray)}
+/* расшифровка источников ороберила под итогом */
+.ct-oro-src{margin-top:2px;opacity:.75}
+
+/* padding-bottom — запас под тень карточек: .donate-collapse режет overflow ради анимации сворачивания */
+.donate-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:8px;padding-bottom:8px}
+@media(max-width:1200px){.donate-grid{grid-template-columns:repeat(4,1fr)}}
 @media(max-width:600px){.donate-grid{grid-template-columns:repeat(2,1fr)}}
 /* карточка-товар: картинка сверху (на белом), контент в нижней зоне на тёмном фоне */
 .donate-card{text-align:center;border-radius:10px;box-shadow:var(--shadow);
@@ -580,60 +600,47 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
   background:var(--surface)}
 .donate-card.active{box-shadow:0 0 0 1px var(--six),0 4px 16px rgba(255,122,26,.3)}
 /* картинка товара — верхняя зона ~4:3, но с потолком высоты чтобы не раздувалась */
-.dc-bg{width:100%;aspect-ratio:4/3;max-height:120px;flex-shrink:0;background-size:cover;
+.dc-bg{width:100%;aspect-ratio:4/3;max-height:52px;flex-shrink:0;background-size:cover;
   background-position:center;background-repeat:no-repeat;background-color:#fff;position:relative}
 .dc-bg::after{content:'';position:absolute;inset:0;
   background:linear-gradient(to bottom,transparent 60%,var(--surface) 100%)}
 .dc-shade{display:none}
-.dc-content{display:flex;flex-direction:column;padding:8px 0 10px;position:relative;z-index:1}
-/* тег поверх картинки, у верхнего края */
-.dc-tag{position:absolute;top:8px;left:50%;transform:translateX(-50%);z-index:2;
-  background:var(--yellow);color:#161616;font-family:var(--mono);
-  font-size:9px;font-weight:700;letter-spacing:.04em;padding:4px 10px;border-radius:4px;
-  white-space:nowrap;box-shadow:0 1px 4px rgba(0,0,0,.3)}
-.donate-card.special .dc-tag{background:var(--six);color:#fff}
-.dc-name{font-weight:700;font-size:13px;margin-bottom:3px}
-.dc-amt{font-family:var(--mono);font-weight:700;font-size:17px;display:flex;align-items:baseline;
-  justify-content:center;gap:4px;flex-wrap:wrap}
-.dc-cur{color:var(--yellow-d);font-size:13px}
-.dc-price{font-family:var(--mono);font-size:13px;color:#4a9eff;font-weight:700;margin:4px 0 8px}
-.dc-cur-txt{color:var(--gray);font-size:11px;font-weight:400}
-.dc-extra{font-family:var(--mono);font-size:10px;color:var(--gray);margin-top:1px}
+.dc-content{display:flex;flex-direction:column;padding:6px 0 8px;position:relative;z-index:1}
+.dc-name{font-weight:700;font-size:12px;margin-bottom:2px;line-height:1.2}
+.dc-amt{font-family:var(--mono);font-weight:700;font-size:15px;display:flex;align-items:baseline;
+  justify-content:center;gap:3px;flex-wrap:wrap}
+.dc-cur{color:var(--yellow-d);font-size:12px}
+.dc-price{font-family:var(--mono);font-size:12px;color:#4a9eff;font-weight:700;margin:3px 0 5px}
+.dc-cur-txt{color:var(--gray);font-size:10px;font-weight:400}
+.dc-extra{font-family:var(--mono);font-size:9px;color:var(--gray);margin-top:1px}
 /* пакет с готовыми пуллами (Протокол потока) — выделяем шестизвёздочным */
-.donate-card.pack .dc-tag{background:var(--six);color:#fff}
 .donate-card.pack .dc-base{color:var(--six)}
 .dq-btn:disabled{opacity:.35;cursor:not-allowed}
 /* поле дней у пропуска */
-.dc-days{width:64px;padding:4px 8px;border:1px solid var(--line);background:var(--gray-bg);
-  font-family:var(--mono);font-size:14px;font-weight:700;color:var(--ink);border-radius:5px;
-  text-align:center;outline:none}
-.dc-days:focus{border-color:var(--yellow);background:var(--surface-2)}
-.dc-pass-months{font-family:var(--mono);font-size:9px;color:var(--six);font-weight:400}
-
 /* строка количества */
-.dc-qty-row{border-top:1px solid var(--line);margin:0 12px;padding:10px 0 0;
-  display:flex;align-items:center;justify-content:space-between;gap:8px}
-.dc-qty-lbl{font-family:var(--mono);font-size:11px;color:var(--ink2)}
-.dc-qty{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:5px;overflow:hidden}
-.dq-btn{width:28px;height:26px;border:none;background:var(--surface-2);color:var(--ink);font-size:16px;cursor:pointer;
-  font-weight:700;transition:.12s}
+.dc-qty-row{border-top:1px solid var(--line);margin:0 8px;padding:6px 0 0;
+  display:flex;align-items:center;justify-content:space-between;gap:5px}
+.dc-qty-lbl{font-family:var(--mono);font-size:10px;color:var(--ink2)}
+.dc-qty{display:flex;align-items:center;gap:0;border:1px solid var(--line);border-radius:4px;overflow:hidden}
+.dq-btn{width:22px;height:22px;border:none;background:var(--surface-2);color:var(--ink);font-size:14px;cursor:pointer;
+  font-weight:700;transition:.12s;display:flex;align-items:center;justify-content:center;padding:0}
 .dq-btn:hover{background:var(--yellow);color:#161616}
-.dq-val{min-width:30px;text-align:center;font-family:var(--mono);font-weight:700;font-size:14px}
+.dq-val{min-width:24px;text-align:center;font-family:var(--mono);font-weight:700;font-size:13px}
 
 /* строка удвоения (галка + текст) */
-.dc-dbl{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;
-  margin:8px 12px 0;padding:9px 11px;border-radius:6px;
+.dc-dbl{display:flex;align-items:center;gap:6px;cursor:pointer;user-select:none;
+  margin:6px 8px 0;padding:5px 6px;border-radius:5px;
   background:rgba(255,250,0,.10);transition:.15s}
 .dc-dbl.on{background:rgba(255,138,51,.16)}
 .dc-dbl.disabled{opacity:.4;cursor:not-allowed}
 .dc-dbl input{display:none}
-.dc-dbl-text{font-family:var(--mono);font-size:11px;line-height:1.35;color:var(--ink2);text-align:left}
+.dc-dbl-text{font-family:var(--mono);font-size:9px;line-height:1.3;color:var(--ink2);text-align:left}
 .dc-dbl-text b{color:var(--six);white-space:nowrap}
-.dcb-box{flex-shrink:0;width:20px;height:20px;border:2px solid var(--gray);background:var(--surface-2);
-  position:relative;transition:.15s;border-radius:4px}
+.dcb-box{flex-shrink:0;width:15px;height:15px;border:2px solid var(--gray);background:var(--surface-2);
+  position:relative;transition:.15s;border-radius:3px}
 .dc-dbl input:checked + .dcb-box{background:var(--six);border-color:var(--six)}
 .dc-dbl input:checked + .dcb-box::after{content:'✓';position:absolute;inset:0;color:#161616;
-  font-size:13px;font-weight:900;display:flex;align-items:center;justify-content:center}
+  font-size:10px;font-weight:900;display:flex;align-items:center;justify-content:center}
 
 /* итог */
 .calc-total{margin-top:6px}
@@ -642,6 +649,14 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .ct-label{font-family:var(--mono);font-size:12px;letter-spacing:.08em;color:var(--gray)}
 .ct-val{font-family:var(--mono);font-weight:700;font-size:28px}
 .ct-row.big{border-top:1px solid var(--line);margin-top:6px;padding-top:18px}
+/* «из них за донат» — зелёный (цвет денег), плавно раскрывается когда есть покупки */
+.ct-donated{display:flex;align-items:baseline;justify-content:space-between;
+  max-height:0;opacity:0;overflow:hidden;padding:0;
+  transition:max-height .25s ease,opacity .25s ease,padding .25s ease}
+.ct-donated.open{max-height:48px;opacity:1;padding:6px 0 2px}
+.ct-donated .ct-label{color:#2f9e5a}
+.ctd-free{color:var(--gray);letter-spacing:0;margin-left:6px}
+.ctd-val{color:#2f9e5a;font-size:22px}
 .ct-row.big .ct-label{color:var(--ink);font-size:14px;display:flex;align-items:center;gap:10px}
 .ct-pull-ic{width:48px;height:48px;object-fit:contain;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.18))}
@@ -703,6 +718,8 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .hist-seg-up{stroke:#3ecf6a}
 .hist-seg-down{stroke:#ff4d4d}
 .hist-seg-flat{stroke:var(--yellow)}
+/* линия «итог вместе с донатом» — отдельной графой, полупрозрачная, точек на ней нет */
+.hist-seg-don{stroke:#2f9e5a;stroke-opacity:.45;stroke-width:2}
 .hist-dot{fill:var(--bg);stroke:var(--ink);stroke-width:1.5;cursor:pointer;
   transition:r .15s, fill .15s}
 .hist-dot:hover{fill:var(--yellow);stroke:var(--yellow);r:6}
