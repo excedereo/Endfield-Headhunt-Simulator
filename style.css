@@ -117,25 +117,111 @@ body{
 .sb-rate b{color:var(--ink)}
 .sb-play{background:var(--yellow);color:#161616;font-family:var(--mono);font-size:11px;
   font-weight:700;letter-spacing:.1em;padding:12px;text-align:center}
-.sb-group{font-family:var(--mono);font-size:9px;letter-spacing:.15em;color:var(--gray);
-  padding:14px 12px 6px;margin-top:4px}
+.sb-group{font-family:var(--mono);font-size:11px;letter-spacing:.18em;color:var(--ink2);font-weight:700;
+  padding:16px 12px 8px;margin-top:6px}
 .sb-group:first-child{margin-top:0}
+
+/* ── нампад режимов (2×2 сетка иконок) ──
+   Grid со стабильными 2 колонками — ширина/позиция кнопок никогда не меняется.
+   Активная кнопка растёт ВНИЗ (иконка сверху, подпись снизу появляется через max-height).
+   Grid по умолчанию align-items:stretch — сосед в том же ряду автоматически тянется
+   на высоту строки, так что оба квадрата в ряду синхронно становятся выше без доп. кода. */
+.sb-numpad{display:grid;grid-template-columns:1fr 1fr;gap:5px;padding:0 12px 4px;align-items:stretch}
+.np-btn{
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  min-height:38px;padding:8px 6px;cursor:pointer;position:relative;box-sizing:border-box;
+  background:var(--surface-2);border:1px solid var(--line);border-radius:6px;
+  color:var(--gray);transition:background .18s,border-color .18s,color .18s;
+  user-select:none;overflow:hidden;
+}
+.np-ic{width:19px;height:19px;object-fit:contain;flex-shrink:0;display:block;
+  filter:brightness(0) saturate(100%) invert(60%);transition:filter .18s}
+/* margin-top вместо gap на контейнере — у пустой (max-height:0) подписи нет своего отступа,
+   поэтому иконка неактивной кнопки центрируется идеально по вертикали.
+   white-space:normal + text-align:center — длинные подписи («Сколько до цели») переносятся
+   на 2 строки вместо обрезки; max-height активной кнопки взят с запасом под 2 строки. */
+.np-lbl{font-family:var(--mono);font-size:10.5px;font-weight:700;white-space:normal;
+  text-align:center;line-height:1.25;margin-top:0;
+  max-height:0;opacity:0;overflow:hidden;transition:max-height .22s ease,opacity .16s ease,margin-top .22s ease}
+/* активная плашка: подпись раскрывается снизу под иконкой (max-height 0→N), сама кнопка растёт вместе с ней —
+   вся строка grid тянется по самому высокому элементу, так что сосед синхронно повторяет высоту. */
+.np-btn.active{
+  background:var(--yellow);border-color:var(--yellow);color:#161616;
+}
+.np-btn.active .np-ic{filter:brightness(0) saturate(100%)} /* чёрная иконка на жёлтом фоне */
+.np-btn.active .np-lbl{max-height:32px;opacity:1;margin-top:4px;transition:max-height .22s ease .04s,opacity .18s ease .1s,margin-top .22s ease .04s}
+/* неактивная плашка при ховере — лёгкий цвет + собственный тултип с названием снизу (не двигает сетку) */
+.np-btn:not(.active):hover{background:var(--gray-bg);border-color:var(--ink2);color:var(--ink);z-index:30}
+.np-btn:not(.active):hover .np-ic{filter:brightness(0) saturate(100%) invert(1)}
+.np-tip{position:absolute;left:50%;top:calc(100% + 6px);transform:translateX(-50%);
+  background:#0d0d0d;color:#ececed;border:1px solid var(--yellow);border-radius:5px;
+  padding:4px 9px;font-family:var(--mono);font-size:10.5px;white-space:nowrap;
+  opacity:0;pointer-events:none;transition:opacity .12s;z-index:50;box-shadow:0 4px 14px rgba(0,0,0,.5)}
+.np-btn:not(.active):hover .np-tip{opacity:1}
 
 /* ============ КОНТЕНТ ============ */
 .content{padding:0 0 60px}
-.hero{position:relative;overflow:hidden;border-bottom:1px solid var(--line);padding:26px 40px 10px}
-.hero-mark{position:absolute;left:30px;top:30px;font-weight:900;font-size:30px;color:var(--ink);
-  transform:skewX(-12deg);letter-spacing:-4px}
-.hero-title{font-weight:900;font-size:clamp(60px,11vw,150px);letter-spacing:-.04em;line-height:.9;
-  text-align:right;color:var(--ink);
-  animation:heroIn 1s cubic-bezier(.2,.8,.2,1) both}
-@keyframes heroIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:none}}
 
 .section-head{padding:26px 40px 0;position:relative}
 .sh-crumb{font-family:var(--mono);font-size:9px;letter-spacing:.3em;color:var(--gray)}
 .sh-en{display:flex;align-items:center;gap:10px;font-family:var(--mono);font-size:15px;color:var(--ink2);margin-top:8px}
 .sh-bar{width:54px;height:14px;background:var(--gray-l)}
-.sh-ru{font-weight:900;font-size:34px;letter-spacing:-.01em;margin-top:2px}
+.sh-ru{font-weight:900;font-size:34px;letter-spacing:-.01em;margin-top:2px;display:flex;align-items:center;gap:12px}
+/* кнопка-ссылка «Информация о найме/поставке» — значок info + подпись, под заголовком страницы */
+.banner-info-link{display:inline-flex;align-items:center;gap:8px;margin-top:10px;padding:0;
+  background:transparent;border:none;cursor:pointer;
+  font-family:var(--mono);font-size:12px;font-weight:700;letter-spacing:.04em;
+  color:var(--yellow);transition:opacity .15s}
+.banner-info-link:hover{opacity:.75}
+.banner-info-ic{display:block;width:16px;height:16px;flex-shrink:0;
+  background-color:var(--yellow);
+  -webkit-mask:var(--circle-info-svg) center/contain no-repeat;
+  mask:var(--circle-info-svg) center/contain no-repeat}
+:root{--circle-info-svg:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Cpath d='M256 512A256 256 0 1 0 256 0a256 256 0 1 0 0 512zM216 336h24V272H216c-13.3 0-24-10.7-24-24s10.7-24 24-24h48c13.3 0 24 10.7 24 24v88h8c13.3 0 24 10.7 24 24s-10.7 24-24 24H216c-13.3 0-24-10.7-24-24s10.7-24 24-24zm40-208a32 32 0 1 1 0 64 32 32 0 1 1 0-64z'/%3E%3C/svg%3E")}
+
+/* ── модалка «как устроен баннер» ── */
+.modal-overlay{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;
+  background:rgba(10,10,10,.72);backdrop-filter:blur(2px);padding:24px;
+  opacity:1;transition:opacity .18s ease}
+.modal-overlay.hidden{opacity:0;pointer-events:none}
+.modal-box{background:var(--surface);border:1px solid var(--line);border-radius:10px;
+  max-width:640px;width:100%;max-height:85vh;display:flex;flex-direction:column;
+  box-shadow:0 20px 60px rgba(0,0,0,.6);
+  transform:scale(1);transition:transform .18s ease}
+.modal-overlay.hidden .modal-box{transform:scale(.96)}
+.modal-head{display:flex;align-items:center;justify-content:space-between;
+  padding:16px 20px;border-bottom:1px solid var(--line)}
+.modal-title{font-family:var(--mono);font-size:12px;letter-spacing:.12em;color:var(--yellow);font-weight:700}
+.modal-close{width:28px;height:28px;border-radius:6px;border:1px solid var(--line);background:var(--surface-2);
+  color:var(--ink2);cursor:pointer;font-size:14px;transition:.15s}
+.modal-close:hover{background:var(--gray-bg);color:var(--ink)}
+.modal-body{padding:20px 22px 24px;overflow-y:auto;font-size:13.5px;line-height:1.6;color:var(--ink2)}
+.modal-body h3{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--ink);
+  margin:18px 0 8px;padding-top:12px;border-top:1px solid var(--line)}
+.modal-body h3:first-child{margin-top:0;padding-top:0;border-top:none}
+.modal-body p{margin:0 0 10px}
+.modal-body ul{margin:0 0 10px;padding-left:20px}
+.modal-body li{margin-bottom:6px}
+.modal-body b{color:var(--ink)}
+.modal-body .mb-note{font-family:var(--mono);font-size:11px;color:var(--gray);margin-top:14px;
+  padding:10px 12px;background:var(--surface-2);border-left:2px solid var(--yellow);border-radius:4px}
+
+/* строка базовых шансов по редкости (6★/5★/4★) в справке о баннере */
+.bi-rates{display:flex;gap:8px;margin:0 0 12px}
+.bi-rate{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;
+  padding:10px 8px;border-radius:6px;background:var(--surface-2);border:1px solid var(--line);
+  border-top:2px solid var(--gray-l)}
+.bi-rate-6{border-top-color:var(--six)}
+.bi-rate-5{border-top-color:var(--yellow)}
+.bi-rate-4{border-top-color:var(--gray)}
+.bi-rate-label{font-family:var(--mono);font-size:10px;letter-spacing:.08em;color:var(--gray)}
+.bi-rate-val{font-family:var(--mono);font-weight:700;font-size:18px;color:var(--ink)}
+.bi-rate-6 .bi-rate-val{color:var(--six)}
+
+/* акцентные числа/пороги внутри текста справки */
+.bi-hl{font-family:var(--mono);font-weight:700;color:var(--yellow);padding:0 1px}
+.bi-hl-strong{color:var(--six);text-decoration:underline;text-decoration-color:rgba(255,138,51,.4);
+  text-underline-offset:3px}
 .sh-tech{font-family:var(--mono);font-size:8px;color:var(--gray);margin-top:14px;line-height:1.6;position:relative;padding-left:14px;border-left:1px solid var(--line)}
 .sh-cells{letter-spacing:3px;margin-top:3px}
 .sh-cmyk{width:5px;height:34px;margin-top:6px;
@@ -247,16 +333,45 @@ body{
 .rh-tech{font-size:10px;color:var(--gray);font-weight:400;letter-spacing:.1em}
 
 .stat-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.stat-card-solo{max-width:340px}
+.stat-card-solo .stat-card-dual{width:100%}
 .stat-grid.four{grid-template-columns:repeat(4,1fr)}
 @media(max-width:900px){.stat-grid,.stat-grid.four{grid-template-columns:repeat(2,1fr)}}
 .stat-card{border:1px solid var(--line);padding:18px 16px;position:relative;background:var(--surface);border-radius:8px;box-shadow:var(--shadow);
   animation:cardIn .4s ease both}
 @keyframes cardIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-.sc-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--gray);margin-bottom:10px}
+.sc-label{font-family:var(--mono);font-size:9px;letter-spacing:.12em;color:var(--gray);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+.sc-ic{width:18px;height:18px;object-fit:contain;flex-shrink:0}
+.ev-ic{width:22px;height:22px;object-fit:contain;vertical-align:-6px;margin-right:5px}
+.sc-value-row{display:flex;align-items:center;gap:10px}
 .sc-value{font-family:var(--mono);font-weight:700;font-size:34px;line-height:1;color:var(--ink)}
 .sc-value.pop{animation:pop .4s ease}
 @keyframes pop{0%{transform:scale(.6);opacity:0}100%{transform:none;opacity:1}}
+.sc-val-ic{width:32px;height:32px;object-fit:contain;flex-shrink:0;filter:brightness(0) saturate(100%) invert(1)}
+.sc-val-ic.native{width:40px;height:40px;filter:none}
 .sc-line{height:3px;background:var(--yellow);margin-top:14px;width:40%}
+
+/* карточка с процентным значением (0–100%) — цвет числа и полоски едет от красного к зелёному */
+.sc-value.pct-color{transition:color .3s}
+.sc-line.pct-color{transition:background .3s}
+
+/* двухстрочная плашка (везучие/невезучие и подобные парные значения) */
+.stat-card-dual{display:flex;flex-direction:column;justify-content:center;gap:12px;padding:16px}
+.dual-row{display:flex;align-items:center;gap:10px}
+.dual-row .sc-val-ic.dual-ic-up,.dual-row .sc-val-ic.dual-ic-down,.dual-row .sc-val-ic.multi-ic,.dual-row .sc-val-ic.native{width:24px;height:24px}
+.dual-ic-up{filter:brightness(0) saturate(100%) invert(70%) sepia(45%) saturate(600%) hue-rotate(70deg)}
+.dual-ic-down{filter:brightness(0) saturate(100%) invert(45%) sepia(80%) saturate(2000%) hue-rotate(-10deg)}
+.dual-val{font-family:var(--mono);font-weight:700;font-size:20px;color:var(--ink);min-width:2ch}
+.dual-lbl{font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--gray)}
+.dual-sep{height:1px;background:var(--line)}
+
+/* иконка потенциала (E0–E5) — 5 клинков, закрашенных по числу активных уровней */
+.pot-icon{display:inline-flex;align-items:center;gap:2px;vertical-align:middle}
+.pot-icon svg{width:1em;height:1em;overflow:visible}
+.pot-blade{fill:#555}
+.pot-blade.on{fill:#fff}
+.pot-icon.pot-accent .pot-blade.on{fill:var(--yellow)}
+.pot-label{font-family:var(--mono);font-weight:700;margin-left:6px}
 
 /* лог событий */
 .evlog{display:flex;flex-direction:column;gap:1px;max-height:340px;overflow:auto;
@@ -366,13 +481,17 @@ body{
 /* ============ КАЛЬКУЛЯТОР ============ */
 .page{animation:resIn .4s ease both}
 .calc-body{display:flex;flex-direction:column;gap:26px}
-.calc-grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.calc-grid2{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+@media(max-width:1100px){.calc-grid2{grid-template-columns:1fr 1fr}}
 @media(max-width:760px){.calc-grid2{grid-template-columns:1fr}}
-.calc-block{border:1px solid var(--line);padding:18px 20px;background:var(--surface);
-  display:flex;flex-direction:column;border-radius:12px;box-shadow:var(--shadow)}
+.calc-block{border:1px solid var(--line);padding:14px 16px;background:var(--surface);
+  display:flex;flex-direction:column;border-radius:10px;box-shadow:var(--shadow)}
+.calc-block-sm .cb-ic{width:36px;height:36px}
+.calc-block-sm .cb-title{font-size:13px}
+.calc-block-sm .cb-out{font-size:16px}
 .calc-grid2 .calc-block{justify-content:space-between}
 
-/* объединённое поле ороберил+ориджеметрий */
+/* объединённое поле ороберил+ориджеметрий — рядом в одну линию */
 .dual-field{display:flex;gap:14px}
 .df-col{flex:1;display:flex;flex-direction:column}
 .df-col.single{margin-top:auto}
@@ -380,12 +499,12 @@ body{
   letter-spacing:.06em;color:var(--ink2);margin-bottom:7px}
 .df-ic{width:30px;height:30px;object-fit:contain}
 .df-conv{font-family:var(--mono);font-size:11.5px;color:var(--six);margin-top:6px}
-.cb-head{display:flex;align-items:center;gap:16px;margin-bottom:16px}
-.cb-ic{width:64px;height:64px;object-fit:contain;flex-shrink:0;
+.cb-head{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.cb-ic{width:48px;height:48px;object-fit:contain;flex-shrink:0;
   filter:drop-shadow(0 2px 5px rgba(0,0,0,.14))}
-.cb-title{font-weight:900;font-size:17px;letter-spacing:.01em}
-.cb-sub{font-family:var(--mono);font-size:11.5px;color:var(--ink2);margin-top:3px}
-.cb-out{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:20px;color:var(--six);white-space:nowrap}
+.cb-title{font-weight:900;font-size:15px;letter-spacing:.01em}
+.cb-sub{font-family:var(--mono);font-size:10.5px;color:var(--ink2);margin-top:2px}
+.cb-out{margin-left:auto;font-family:var(--mono);font-weight:700;font-size:17px;color:var(--six);white-space:nowrap}
 .cb-out span{font-size:11px;color:var(--gray);font-weight:400}
 
 /* ── кастомные числовые поля (стрелки ▲▼) ── */
@@ -422,11 +541,13 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .sl-readout{font-family:var(--mono);font-size:12px;color:var(--gray);text-align:right;margin-right:11px}
 .sl-val{color:var(--ink);font-weight:700;font-size:14px}
 
-/* тумблеры входа */
+/* тумблеры входа — тот же визуальный язык, что у числовых полей (.calc-num.wide):
+   тот же фон, тот же паддинг, растянуты на всю ширину, острые углы */
 .toggles{display:flex;flex-wrap:wrap;gap:14px}
 .toggle{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none;
-  padding:10px 14px;border:1px solid var(--line);transition:.15s;flex:1;min-width:140px}
-.toggle:hover{background:var(--gray-bg)}
+  padding:18px 16px;border:1px solid var(--line);background:var(--gray-bg);box-sizing:border-box;
+  transition:.15s;flex:1;min-width:140px}
+.toggle:hover{border-color:var(--yellow);background:var(--surface-2)}
 .toggle.on{border-color:var(--six);background:rgba(255,122,26,.06)}
 .toggle input{display:none}
 .tg-track{width:40px;height:20px;background:var(--gray-l);border-radius:10px;position:relative;
@@ -435,7 +556,7 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .tg-knob{position:absolute;top:2px;left:2px;width:16px;height:16px;background:#fff;border-radius:50%;
   transition:.2s;box-shadow:0 1px 2px rgba(0,0,0,.3)}
 .toggle.on .tg-knob{left:22px}
-.tg-lbl{font-family:var(--mono);font-size:12px;color:var(--ink2)}
+.tg-lbl{font-family:var(--mono);font-size:18px;font-weight:700;color:var(--ink)}
 .tg-lbl b{color:var(--six)}
 
 /* донаты */

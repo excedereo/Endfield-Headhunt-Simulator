@@ -29,8 +29,7 @@ const PASS = { price: 449, origPerMonth: 12, oroPerDay: 200, daysPerMonth: 30 };
 
 // состояние
 const state = {
-  login: [false, false, false],   // три дня
-  apc: 0,
+  freebies: false,  // «бесплатные пуллы» — вход + талоны АПК, объединено в 1 тумблер
   base: 0,
   orig: 0,
   oro: 0,
@@ -38,22 +37,22 @@ const state = {
   // на каждый пакет: qty (кол-во покупок) и doubled (0/1 — бонус удвоения, даётся 1 раз)
   donates: {},  // index -> { qty, doubled }
 };
-const LOGIN_DAYS = [2, 2, 1]; // пуллов по дням
+const FREEBIES_PULLS = 10; // максимум из входа (2+2+1=5) и талонов АПК (5) вместе
 
 /* ── ЦЕНТРАЛИЗОВАННАЯ НАВИГАЦИЯ ── */
-// page: 'sim' | 'calc' | 'simmenu'
+// page: 'sim' | 'weapon' | 'calc' | 'simmenu'
 function navTo(page) {
   if (!page) return;
-  const pages = { sim: 'page-sim', calc: 'page-calc', simmenu: 'page-simmenu' };
+  const pages = { sim: 'page-sim', weapon: 'page-weapon', calc: 'page-calc', simmenu: 'page-simmenu' };
   Object.entries(pages).forEach(([key, id]) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', key !== page);
   });
-  // tabbar: «Симулятор» подсвечен для sim и simmenu
+  // tabbar: подсвечиваем вкладку, соответствующую текущей странице (simmenu живёт под «Симулятор»)
+  const tabForPage = { sim: 'sim', simmenu: 'sim', weapon: 'weapon', calc: 'calc' };
+  const activeTab = tabForPage[page] || 'sim';
   document.querySelectorAll('.tab').forEach(t => {
-    const isSimTab = t.dataset.tab === 'sim';
-    const active = (page === 'calc') ? !isSimTab : isSimTab;
-    t.classList.toggle('active', active);
+    t.classList.toggle('active', t.dataset.tab === activeTab);
   });
   window.scrollTo({ top: 0, behavior: 'smooth' });
   // при показе калькулятора перерисовываем график — пока page-calc был hidden (display:none),
@@ -84,8 +83,9 @@ function initPages() {
   // нижний бар (мобайл)
   document.querySelectorAll('.tab').forEach(tab => {
     tab.addEventListener('click', () => {
-      if (tab.dataset.tab === 'sim') navTo(isMobile() ? 'simmenu' : 'sim');
-      else navTo('calc');
+      const t = tab.dataset.tab;
+      if (t === 'sim') navTo(isMobile() ? 'simmenu' : 'sim');
+      else navTo(t); // 'weapon' | 'calc'
     });
   });
   // плашки меню симулятора → выбор режима + переход
@@ -168,28 +168,25 @@ function buildSlider(el) {
   setVal(val);
 }
 
-/* ── ТУМБЛЕРЫ ВХОДА ── */
+/* ── ТУМБЛЕР «БЕСПЛАТНЫЕ ПУЛЛЫ» (вход + талоны АПК объединены в один переключатель) ── */
 function buildLoginToggles() {
   const host = document.getElementById('loginToggles');
   host.innerHTML = '';
-  LOGIN_DAYS.forEach((p, i) => {
-    const t = document.createElement('label');
-    t.className = 'toggle';
-    t.innerHTML = `
-      <input type="checkbox" data-day="${i}">
-      <span class="tg-track"><span class="tg-knob"></span></span>
-      <span class="tg-lbl">ДЕНЬ ${i + 1} <b>+${p}</b></span>`;
-    const chk = t.querySelector('input');
-    // восстановление сохранённого
-    chk.checked = !!state.login[i];
+  const t = document.createElement('label');
+  t.className = 'toggle';
+  t.innerHTML = `
+    <input type="checkbox">
+    <span class="tg-track"><span class="tg-knob"></span></span>
+    <span class="tg-lbl">ПОЛУЧЕНО <b>+${FREEBIES_PULLS}</b></span>`;
+  const chk = t.querySelector('input');
+  chk.checked = !!state.freebies;
+  t.classList.toggle('on', chk.checked);
+  chk.addEventListener('change', () => {
+    state.freebies = chk.checked;
     t.classList.toggle('on', chk.checked);
-    chk.addEventListener('change', () => {
-      state.login[i] = chk.checked;
-      t.classList.toggle('on', chk.checked);
-      recalc();
-    });
-    host.appendChild(t);
+    recalc();
   });
+  host.appendChild(t);
 }
 
 /* ── ДОНАТЫ ── */
@@ -309,10 +306,8 @@ function buildDonates() {
 
 /* ── ИТОГОВЫЙ РАСЧЁТ ── */
 function recalc() {
-  // пуллы из прямых источников
-  let loginPulls = 0;
-  state.login.forEach((on, i) => { if (on) loginPulls += LOGIN_DAYS[i]; });
-  const apcPulls = state.apc;
+  // «бесплатные пуллы» — вход + талоны АПК, объединено в 1 тумблер
+  const freebiesPulls = state.freebies ? FREEBIES_PULLS : 0;
   const basePulls = Math.floor(state.base / RATES.BASE_TICKET_PER_PULL);
 
   // ороберил из ориджеметрия + донатов + имеющегося
@@ -346,7 +341,7 @@ function recalc() {
   const oroTotal = oroFromOrig + state.oro + donateOro;   // + ороберил месячного пропуска
   const oroPulls = Math.floor(oroTotal / RATES.OROBERYL_PER_PULL);
 
-  const totalPulls = loginPulls + apcPulls + basePulls + oroPulls + donatePulls;
+  const totalPulls = freebiesPulls + basePulls + oroPulls + donatePulls;
 
   // сохраняем итог пуллов, чтобы симулятор мог его подставить кнопкой «Мои пуллы»
   try {
@@ -358,8 +353,7 @@ function recalc() {
   if (mc) mc.textContent = totalPulls.toLocaleString('ru');
 
   // обновляем выводы блоков
-  setOut('outLogin', loginPulls, 'пуллов');
-  setOut('outApc', apcPulls, 'пуллов');
+  setOut('outLogin', freebiesPulls, 'пуллов');
   setOut('outBase', basePulls, 'пуллов');
   // месячный пропуск: подпись месяцев в карточке
   const pm = document.getElementById('passMonths');
@@ -389,8 +383,7 @@ function recalc() {
   // разбивка
   const bd = document.getElementById('breakdown');
   const parts = [
-    ['Вход', loginPulls],
-    ['АПК', apcPulls],
+    ['Бесплатные пуллы', freebiesPulls],
     ['Базовые талоны', basePulls],
     ['Ороберил (всё)', oroPulls],
     ['Пакеты (пуллы)', donatePulls],
@@ -413,8 +406,16 @@ function loadState() {
     const raw = localStorage.getItem(SAVE_KEY);
     if (!raw) return;
     const s = JSON.parse(raw);
-    if (Array.isArray(s.login)) state.login = s.login;
-    ['apc', 'base', 'orig', 'oro', 'passDays'].forEach(k => { if (typeof s[k] === 'number') state[k] = s[k]; });
+    // обратная совместимость: раньше было 3 тумблера входа (login[]) + отдельный слайдер АПК (apc) —
+    // если у пользователя сохранён старый формат, переносим в новый единый тумблер freebies
+    if (typeof s.freebies === 'boolean') {
+      state.freebies = s.freebies;
+    } else if (Array.isArray(s.login) || typeof s.apc === 'number') {
+      const oldLoginPulls = Array.isArray(s.login) ? s.login.reduce((sum, on, i) => sum + (on ? [2,2,1][i] : 0), 0) : 0;
+      const oldApcPulls = typeof s.apc === 'number' ? s.apc : 0;
+      state.freebies = (oldLoginPulls + oldApcPulls) >= FREEBIES_PULLS;
+    }
+    ['base', 'orig', 'oro', 'passDays'].forEach(k => { if (typeof s[k] === 'number') state[k] = s[k]; });
     if (s.donates) state.donates = s.donates;
   } catch (e) {}
 }
@@ -718,10 +719,9 @@ function initCalc() {
   initHistNav();
   renderHistory();
   initPages();
-  buildLoginToggles();      // читают state.login
+  buildLoginToggles();      // тумблер «бесплатные пуллы», читает state.freebies
   buildDonates();           // читают state.donates
   initDonateToggle();       // секция донатов свёрнута по умолчанию
-  document.querySelectorAll('#page-calc .slider').forEach(buildSlider); // слайдер АПК читает state.apc
   // числовые поля — выставляем сохранённые значения
   bindNumber('inBase', 'base');
   bindNumber('inOrig', 'orig');

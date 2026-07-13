@@ -198,29 +198,29 @@ function animateBar(fillEl, pct, delay = 0) {
 // ── переключение режимов ──
 let MODE = 'detailed';
 const titles = {
-  detailed: 'ОДНА КРУТКА',
+  detailed: 'ОДИН ПРОГОН НАЙМА',
   monte: 'МОНТЕ-КАРЛО',
   reverse: 'СКОЛЬКО ДО ЦЕЛИ',
   prizes: 'ПОДСЧЁТ ПРИЗОВ',
 };
 const descs = {
-  detailed: 'Симулирует <b>один заход</b> на баннер: крутим заданное число пуллов и смотрим, ' +
+  detailed: 'Симулирует <b>один заход</b> на баннер: совершаем заданное число прогонов найма и смотрим, ' +
             'что именно выпало. Каждый 6★, дубликат rate-up оператора и бонусный жетон попадают в лог. ' +
             'Это как «сыграть один раз» — результат случайный, при повторном запуске будет другим. ' +
             'Нужно чтобы почувствовать, как реально идёт банк, а не усреднённую статистику.',
   monte: 'Прогоняет тот же заход <b>тысячи раз</b> и усредняет. Показывает честный шанс взять ' +
-         'хотя бы копию 6★ rate-up оператора за это число пуллов, среднее количество копий и жетонов, ' +
+         'хотя бы копию 6★ rate-up оператора за это число прогонов найма, среднее количество копий и жетонов, ' +
          'и полное распределение потенциала (E0–E5). Отвечает на вопрос ' +
-         '<b>«какова вероятность, если у меня есть N пуллов»</b>. Чем больше прогонов — тем точнее цифры.',
+         '<b>«какова вероятность, если у меня есть N прогонов найма»</b>. Чем больше прогонов — тем точнее цифры.',
   reverse: 'Обратная задача: задаёшь <b>цель</b> (E0 — просто копия, до E5 — макс) и движок ищет, ' +
-           'сколько пуллов в среднем нужно, чтобы её закрыть. Показывает среднее, медиану, ' +
+           'сколько прогонов найма в среднем нужно, чтобы её закрыть. Показывает среднее, медиану, ' +
            'везучие и невезучие 10% и гистограмму разброса. Отвечает на вопрос ' +
            '<b>«сколько копить под нужный потенциал»</b>.',
-  prizes: 'Считает <b>какие талоны накапают</b> за прокрутки: базовые талоны (за копии 6★/5★), ' +
-          'премиум-талоны и АПК (за лишние жетоны), билеты арсенала. Учитываются бесплатные пуллы ' +
+  prizes: 'Считает <b>какие талоны накапают</b> за прогоны найма: базовые талоны (за копии 6★/5★), ' +
+          'премиум-талоны и АПК (за лишние жетоны), билеты арсенала. Учитываются бесплатные прогоны ' +
           '(+10 после 30 платных). Галка «вымакшено» — если стандартные операторы у тебя уже на максе, ' +
           'каждое их выпадение идёт в талоны; если нет — первая копия каждого это сам оператор. ' +
-          'Можно один прокрут или среднее по тысячам.',
+          'Можно один прогон или среднее по тысячам.',
 };
 function applyDesc() {
   const el = document.getElementById('modeDescText');
@@ -262,7 +262,7 @@ function restoreResult(mode) {
   requestAnimationFrame(() => requestAnimationFrame(() => res.classList.remove('no-anim')));
 }
 
-// устанавливает режим симулятора (одна крутка / монте / reverse)
+// устанавливает режим симулятора (один прогон найма / монте / reverse)
 function setMode(mode) {
   MODE = mode;
   document.getElementById('modeTitle').textContent = titles[MODE];
@@ -278,17 +278,27 @@ function setMode(mode) {
   // восстанавливаем сохранённый результат этого режима (или прячем, если его нет)
   restoreResult(mode);
   applyDesc();
-  // синхронизируем активный пункт сайдбара
+  // синхронизируем активный пункт сайдбара (и обычные строки, и нампад-плашки)
   document.querySelectorAll('.sb-item').forEach(i => {
+    i.classList.toggle('active', i.dataset.mode === mode);
+  });
+  document.querySelectorAll('.np-btn[data-mode]').forEach(i => {
     i.classList.toggle('active', i.dataset.mode === mode);
   });
 }
 window.setMode = setMode;
 
-document.querySelectorAll('.sb-item').forEach(item => {
+// .sb-item (обычные строки, напр. «Сколько у меня пуллов») + .np-btn (нампад-плашки режимов)
+document.querySelectorAll('.sb-item, .np-btn').forEach(item => {
   item.addEventListener('click', () => {
     if (item.dataset.mode) setMode(item.dataset.mode);
-    if (window.navTo) window.navTo(item.dataset.page); // page-sim/page-calc
+    if (item.dataset.wmode && window.setWeaponMode) window.setWeaponMode(item.dataset.wmode);
+    if (window.navTo) window.navTo(item.dataset.page); // page-sim/page-weapon/page-calc
+    // подсветка активного пункта сайдбара — единая точка истины, не зависит от того,
+    // есть ли у пункта data-mode/data-wmode (у «Сколько у меня пуллов» их нет вообще).
+    // .sb-item и .np-btn — разные визуальные группы, подсвечиваем каждую независимо.
+    document.querySelectorAll('.sb-item').forEach(i => i.classList.toggle('active', i === item));
+    document.querySelectorAll('.np-btn').forEach(i => i.classList.toggle('active', i === item));
   });
 });
 // инициализация видимости и описания
@@ -452,9 +462,8 @@ function runMode(mode, p) {
     });
 }
 
-/* ── РЕНДЕР: одна крутка ── */
+/* ── РЕНДЕР: один прогон найма ── */
 function renderDetailed(r, p) {
-  const consTxt = r.cons === null ? '— НЕТ 6★' : 'E' + r.cons;
   let rows = '';
   for (const e of r.events) {
     let label, cls;
@@ -475,13 +484,19 @@ function renderDetailed(r, p) {
   }
   if (!rows) rows = '<div class="ev ev-empty">// ни одного 6★ за этот прогон</div>';
 
+  const potCard = `<div class="stat-card">
+      <div class="sc-label">ПОТЕНЦИАЛ<span class="info" tabindex="0" data-info="Итоговая фаза потенциала на конец захода. E0 — одна копия, E5 — максимум (5 жетонов сверху). Закрашенные клинки = набранные уровни.">?</span></div>
+      <div class="sc-value">${potentialIconHtml(r.cons, { accent: true })}</div>
+      <div class="sc-line"></div>
+    </div>`;
+
   const html = `
-    <div class="res-head">↘ РЕЗУЛЬТАТ ОДНОЙ КРУТКИ <span class="rh-tech">// ${p.pulls} ПУЛЛОВ</span></div>
+    <div class="res-head">↘ РЕЗУЛЬТАТ ПРОГОНА НАЙМА <span class="rh-tech">// ${p.pulls} ПРОГОНОВ</span></div>
     <div class="stat-grid">
-      ${statCard('КОПИЙ 6★ RATE-UP', r.copies, { info: 'Сколько раз за этот заход выпал именно rate-up оператор (новый + дубликаты + гарант). Каждая копия сверх первой даёт жетон.' })}
-      ${statCard('ЖЕТОНОВ', r.tokens, { info: 'Жетоны потенциала rate-up оператора: за дубликаты (со 2-й копии) и за каждый 240-й пулл. Нужны для прокачки E1–E5.' })}
-      ${statCard('ПОТЕНЦИАЛ', 0, { textTo: consTxt, info: 'Итоговая фаза потенциала на конец захода. E0 — одна копия, E5 — максимум (5 жетонов сверху).' })}
-      ${statCard('ПИТИ НА ВЫХОДЕ', r.pityOut, { info: 'Сколько пуллов без 6★ накоплено к концу захода. Софт-пити растит шанс после 65, хард-гарант 6★ на 80-м. Счётчик переносится на следующий баннер.' })}
+      ${potCard}
+      ${statCard('КОПИЙ 6★ RATE-UP', r.copies, { icon: ICON.layers, info: 'Сколько раз за этот заход выпал именно rate-up оператор (новый + дубликаты + гарант). Каждая копия сверх первой даёт жетон.' })}
+      ${statCard('ЖЕТОНОВ', r.tokens, { icon: ICON.hashtag, info: 'Жетоны потенциала rate-up оператора: за дубликаты (со 2-й копии) и за каждый 240-й прогон найма. Нужны для прокачки E1–E5.' })}
+      ${statCard('ПИТИ НА ВЫХОДЕ', r.pityOut, { icon: ICON.clock, info: 'Сколько прогонов найма без 6★ накоплено к концу захода. Софт-пити растит шанс после 65, хард-гарант 6★ на 80-м. Счётчик переносится на следующий баннер.' })}
     </div>
     <div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div>
     <div class="evlog">${rows}</div>`;
@@ -500,12 +515,20 @@ function renderMonte(r, p) {
       <div class="dr-track"><div class="dr-fill" data-pct="${(dist[e]*100).toFixed(2)}"></div></div>
       <span class="dr-v">${(dist[e]*100).toFixed(2)}%</span></div>`;
   }
+  const likely = mostLikelyPotential(r.noCamille, dist);
+  const potCard = `<div class="stat-card">
+      <div class="sc-label">САМЫЙ ВЕРОЯТНЫЙ ПОТЕНЦИАЛ<span class="info" tabindex="0" data-info="Уровень потенциала rate-up оператора, который выпадает чаще всего среди всех прогонов (мода распределения). Шанс именно этого исхода — ${(likely.chance*100).toFixed(1)}%.">?</span></div>
+      <div class="sc-value">${potentialIconHtml(likely.level, { accent: true })}</div>
+      <div class="sc-line"></div>
+    </div>`;
+
   const html = `
-    <div class="res-head">↘ МОНТЕ-КАРЛО <span class="rh-tech">// ${p.pulls} ПУЛЛОВ × ${r.trials.toLocaleString('ru')} ПРОГОНОВ</span></div>
+    <div class="res-head">↘ МОНТЕ-КАРЛО <span class="rh-tech">// ${p.pulls} ПРОГОНОВ НАЙМА × ${r.trials.toLocaleString('ru')} ПРОГОНОВ</span></div>
     <div class="stat-grid">
-      ${statCard('ШАНС ≥ E0', r.pE0*100, { decimals: 2, suffix: '%', info: 'Доля прогонов, где выпала хотя бы одна копия rate-up оператора. Это вероятность «получить его вообще» за указанное число пуллов.' })}
-      ${statCard('СРЕД. КОПИЙ', r.avgCopies, { decimals: 2, info: 'Среднее число копий rate-up оператора по всем прогонам. Может быть дробным: усреднение, а не один заход.' })}
-      ${statCard('СРЕД. ЖЕТОНОВ', r.avgTokens, { decimals: 2, info: 'Среднее число жетонов потенциала за заход (дубликаты + жетоны за 240). Косвенно показывает, до какого E в среднем добираешься.' })}
+      ${potCard}
+      ${statCard('ШАНС ≥ E0', r.pE0*100, { decimals: 2, suffix: '%', icon: ICON.percent, pctColor: true, info: 'Доля прогонов, где выпала хотя бы одна копия rate-up оператора. Это вероятность «получить его вообще» за указанное число прогонов найма.' })}
+      ${statCard('СРЕД. КОПИЙ', r.avgCopies, { decimals: 2, icon: ICON.layers, info: 'Среднее число копий rate-up оператора по всем прогонам. Может быть дробным: усреднение, а не один заход.' })}
+      ${statCard('СРЕД. ЖЕТОНОВ', r.avgTokens, { decimals: 2, icon: ICON.hashtag, info: 'Среднее число жетонов потенциала за заход (дубликаты + жетоны за 240). Косвенно показывает, до какого E в среднем добираешься.' })}
     </div>
     <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ ПОТЕНЦИАЛА<span class="info" tabindex="0" data-info="Какая доля прогонов закончилась на каждой фазе E0–E5 (и сколько вообще не взяли 6★). Наведись на строку — точный процент. Показывает не «сколько в среднем», а весь разброс исходов.">?</span></div>
     <div class="dist" id="distChart">${bars}</div>`;
@@ -515,20 +538,25 @@ function renderMonte(r, p) {
 /* ── РЕНДЕР: сколько до цели ── */
 function renderReverse(r, p) {
   const html = `
-    <div class="res-head">↘ СКОЛЬКО ПУЛЛОВ ДО E${p.target} <span class="rh-tech">// ${r.trials.toLocaleString('ru')} ПРОГОНОВ</span></div>
+    <div class="res-head">↘ СКОЛЬКО ПРОГОНОВ НАЙМА ДО E${p.target} <span class="rh-tech">// ${r.trials.toLocaleString('ru')} ПРОГОНОВ</span></div>
     <div class="stat-grid four">
-      ${statCard('СРЕДНЕЕ', r.mean, { decimals: 1, big: true, info: 'Среднее число пуллов до цели по всем прогонам. Удобно для общей прикидки, но «хвост» невезения тянет его вверх — медиана честнее.' })}
-      ${statCard('МЕДИАНА', r.median, { info: 'Половина игроков закроет цель быстрее этого числа, половина — медленнее. Самый честный ориентир «по середине».' })}
-      ${statCard('ВЕЗУЧИЕ 10%', r.best10, { info: 'Граница удачи: 10% самых везучих прогонов уложились в это число пуллов или меньше.' })}
-      ${statCard('НЕВЕЗУЧИЕ 10%', r.worst10, { info: 'Граница невезения: 10% самых неудачных прогонов потратили это число пуллов или больше. Закладывайся на этот случай.' })}
+      ${statCard('СРЕДНЕЕ', r.mean, { decimals: 1, big: true, icon: ICON.chartLine, info: 'Среднее число прогонов найма до цели по всем прогонам симуляции. Удобно для общей прикидки, но «хвост» невезения тянет его вверх — медиана честнее.' })}
+      ${statCard('МЕДИАНА', r.median, { icon: ICON.chartBar, info: 'Половина игроков закроет цель быстрее этого числа, половина — медленнее. Самый честный ориентир «по середине».' })}
+      ${dualStatCard(
+          'ВЕЗУЧИЕ 10%', r.best10, ICON.trendUp,
+          'НЕВЕЗУЧИЕ 10%', r.worst10, ICON.trendDown,
+          {
+            topInfo: 'Если бы 100 разных игроков делали прогоны найма до этой цели, 10 самых везучих из них закрыли бы её за это число прогонов или даже быстрее. Это твой «повезло» сценарий — на него рассчитывать не стоит, но шанс есть.',
+            botInfo: 'Если бы 100 разных игроков делали прогоны найма до этой цели, 10 самых невезучих из них потратили бы на неё это число прогонов или даже больше. Закладывай именно эту цифру в бюджет, если не хочешь остаться без валюты на середине пути.',
+          })}
     </div>
-    <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ (гистограмма)<span class="info" tabindex="0" data-info="Сколько прогонов закрыли цель за то или иное число пуллов. Высокий столбец — частый исход. Метки Г/Ж1/Ж2 снизу — гарант и гарантированные жетоны, на них видны пики «дозревания». Дуги сверху — суммарный % в участке.">?</span></div>
+    <div class="res-head sub">↘ РАСПРЕДЕЛЕНИЕ (гистограмма)<span class="info" tabindex="0" data-info="Сколько прогонов симуляции закрыли цель за то или иное число прогонов найма. Высокий столбец — частый исход. Метки Г/Ж1/Ж2 снизу — гарант и гарантированные жетоны, на них видны пики «дозревания». Дуги сверху — суммарный % в участке.">?</span></div>
     <div class="histo-wrap">
       <div class="histo-arcs" id="histoArcs"></div>
       <div class="histo" id="histo"></div>
       <div class="histo-markers" id="histoMarkers"></div>
     </div>
-    <div class="res-note">// худший 1% случаев: <b>${r.worst1}</b> пуллов · <span class="rn-hint">Г — гарант, Ж1/Ж2… — гарантированные жетоны</span></div>`;
+    <div class="res-note">// худший 1% случаев: <b>${r.worst1}</b> прогонов найма · <span class="rn-hint">Г — гарант, Ж1/Ж2… — гарантированные жетоны</span></div>`;
   return { html, after: () => { animateStatCards(); drawHisto(r); } };
 }
 
@@ -544,8 +572,8 @@ function renderPrizes(r, p, single) {
   const c5 = single ? r.count5 : r.avg5;
   const c4 = single ? r.count4 : r.avg4;
   const dec = single ? 0 : 1;     // в Монте дробные средние
-  const sub = single ? `// ОДИН ПРОКРУТ · ${p.pulls} ПУЛЛОВ`
-                     : `// ${p.pulls} ПУЛЛОВ × ${r.trials.toLocaleString('ru')} ПРОГОНОВ · СРЕДНЕЕ`;
+  const sub = single ? `// ОДИН ЗАХОД · ${p.pulls} ПРОГОНОВ НАЙМА`
+                     : `// ${p.pulls} ПРОГОНОВ НАЙМА × ${r.trials.toLocaleString('ru')} ПРОГОНОВ · СРЕДНЕЕ`;
 
   const prizeCard = (icon, label, value, hint, info) => `
     <div class="prize-card">
@@ -591,7 +619,7 @@ function renderPrizes(r, p, single) {
             <span class="ev-l">${rar(6)} ${e.name}${tag}</span></div>`;
         }).join('') + '</div>';
     } else {
-      logHtml = '<div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div><div class="evlog"><div class="ev ev-empty">// ни одного события за прокрут</div></div>';
+      logHtml = '<div class="res-head sub">↘ ЛОГ СОБЫТИЙ</div><div class="evlog"><div class="ev ev-empty">// ни одного события за заход</div></div>';
     }
   }
 
@@ -629,14 +657,80 @@ function renderPrizes(r, p, single) {
 }
 
 /* ── вспомогательные ── */
+// opts.icon — путь к SVG-иконке (FontAwesome и т.п.), вставляется перед числом внутри .sc-value
 function statCard(label, value, opts) {
   const id = 'sc' + Math.random().toString(36).slice(2, 8);
-  const { info, ...rest } = opts;
+  const { info, icon, ...rest } = opts;
   const data = JSON.stringify({ value, ...rest });
   const badge = info ? ` <span class="info" tabindex="0" data-info="${info.replace(/"/g, '&quot;')}">?</span>` : '';
+  // webp/png (валютные иконки-предметы) не перекрашиваем фильтром — они уже цветные; SVG (FontAwesome) красим в белый
+  const nativeCls = icon && /\.(webp|png|jpg)$/i.test(icon) ? ' native' : '';
+  const iconHtml = icon ? `<img src="${icon}" class="sc-val-ic${nativeCls}" alt="">` : '';
+  const pctCls = rest.pctColor ? ' pct-color' : '';
   return `<div class="stat-card"><div class="sc-label">${label}${badge}</div>
-    <div class="sc-value" id="${id}" data-anim='${data}'>0</div>
-    <div class="sc-line"></div></div>`;
+    <div class="sc-value-row">${iconHtml}<span class="sc-value${pctCls}" id="${id}" data-anim='${data}'>0</span></div>
+    <div class="sc-line${pctCls}" id="${id}-line"></div></div>`;
+}
+
+// цвет по проценту (0–100): красный → оранжевый → жёлто-зелёный → зелёный, приглушённая палитра
+function pctToColor(pct) {
+  const p = Math.max(0, Math.min(100, pct)) / 100;
+  // три опорные точки в HSL: 0%=мягкий красный(4,70%,58%), 50%=янтарный(38,85%,55%), 100%=спокойный зелёный(140,55%,48%)
+  const stops = [
+    { p: 0, h: 4, s: 70, l: 58 },
+    { p: 0.5, h: 38, s: 85, l: 55 },
+    { p: 1, h: 140, s: 55, l: 48 },
+  ];
+  let a = stops[0], b = stops[1];
+  if (p > 0.5) { a = stops[1]; b = stops[2]; }
+  const t = (p - a.p) / (b.p - a.p);
+  const h = a.h + (b.h - a.h) * t;
+  const s = a.s + (b.s - a.s) * t;
+  const l = a.l + (b.l - a.l) * t;
+  return `hsl(${h.toFixed(0)}, ${s.toFixed(0)}%, ${l.toFixed(0)}%)`;
+}
+window.pctToColor = pctToColor;
+
+// двухстрочная плашка (везучие/невезучие, пары родственных значений): одна карточка,
+// два значения друг под другом. opts.native — иконки уже цветные (валюты/предметы),
+// не красить фильтром вверх-зелёный/вниз-оранжевый — оставить как есть.
+function dualStatCard(topLabel, topValue, topIcon, botLabel, botValue, botIcon, opts) {
+  const native = opts && opts.icon2Native;
+  const upCls = native ? 'native' : 'dual-ic-up';
+  const downCls = native ? 'native' : 'dual-ic-down';
+  const topInfo = opts && opts.topInfo
+    ? ` <span class="info" tabindex="0" data-info="${opts.topInfo.replace(/"/g, '&quot;')}">?</span>` : '';
+  const botInfo = opts && opts.botInfo
+    ? ` <span class="info" tabindex="0" data-info="${opts.botInfo.replace(/"/g, '&quot;')}">?</span>` : '';
+  return `<div class="stat-card stat-card-dual">
+    <div class="dual-row">
+      <img src="${topIcon}" class="sc-val-ic ${upCls}" alt="">
+      <span class="dual-val">${topValue}</span>
+      <span class="dual-lbl">${topLabel}${topInfo}</span>
+    </div>
+    <div class="dual-sep"></div>
+    <div class="dual-row">
+      <img src="${botIcon}" class="sc-val-ic ${downCls}" alt="">
+      <span class="dual-val">${botValue}</span>
+      <span class="dual-lbl">${botLabel}${botInfo}</span>
+    </div>
+  </div>`;
+}
+
+// N-строчная плашка: массив [{label, value, icon}] друг под другом в одной карточке —
+// для «водянистой» родственной статистики (например среднее число предметов по редкости)
+function multiStatCard(rows, opts) {
+  const title = opts && opts.title
+    ? `<div class="sc-label">${opts.title}${opts.info ? ` <span class="info" tabindex="0" data-info="${opts.info.replace(/"/g, '&quot;')}">?</span>` : ''}</div>`
+    : '';
+  const body = rows.map((row, i) => `
+    <div class="dual-row">
+      <img src="${row.icon}" class="sc-val-ic native multi-ic" alt="">
+      <span class="dual-val">${row.value}</span>
+      <span class="dual-lbl">${row.label}</span>
+    </div>
+    ${i < rows.length - 1 ? '<div class="dual-sep"></div>' : ''}`).join('');
+  return `<div class="stat-card stat-card-dual">${title}${body}</div>`;
 }
 function animateStatCards() {
   document.querySelectorAll('.sc-value[data-anim]').forEach((el, i) => {
@@ -648,6 +742,12 @@ function animateStatCards() {
         el.classList.add('pop');
       } else {
         animateNumber(el, d.value, { decimals: d.decimals || 0, suffix: d.suffix || '' });
+      }
+      if (d.pctColor) {
+        const color = pctToColor(d.value);
+        el.style.color = color;
+        const line = document.getElementById(el.id + '-line');
+        if (line) line.style.background = color;
       }
     }, 80 * i);
   });
@@ -681,7 +781,7 @@ function drawHisto(r) {
     const col = document.createElement('div');
     col.className = 'hb-col';
     const pctOfAll = total ? (c / total * 100).toFixed(1) : 0;
-    col.dataset.tip = `${i*bucket}–${i*bucket+bucket-1} пуллов · ${c.toLocaleString('ru')} (${pctOfAll}%)`;
+    col.dataset.tip = `${i*bucket}–${i*bucket+bucket-1} прогонов найма · ${c.toLocaleString('ru')} (${pctOfAll}%)`;
     const bar = document.createElement('div');
     bar.className = 'hb';
     col.appendChild(bar);
@@ -722,21 +822,21 @@ function drawHistoMarkers(counts, bucket, nCols, total) {
   const maxPull = nCols * bucket;
   // ключевые события (только те что в диапазоне)
   const events = [
-    { pull: 120, label: 'Г', tip: 'Гарант 120 — если rate-up не выпал за 120 платных пуллов, он гарантирован. Здесь «дозревают» невезучие прогоны.' },
-    { pull: 240, label: 'Ж1', tip: '1-й гарантированный жетон (каждый 240-й пулл). Даёт +1 потенциал всем — отсюда ступенька.' },
-    { pull: 480, label: 'Ж2', tip: '2-й гарантированный жетон (480-й пулл). Большинство добирает до E5 именно тут — главный пик.' },
-    { pull: 720, label: 'Ж3', tip: '3-й гарантированный жетон (720-й пулл). Сюда доходят самые невезучие.' },
-    { pull: 960, label: 'Ж4', tip: '4-й гарантированный жетон (960-й пулл).' },
+    { pull: 120, label: 'Г', tip: 'Гарант 120 — если rate-up не выпал за 120 платных прогонов найма, он гарантирован. Здесь «дозревают» невезучие прогоны.' },
+    { pull: 240, label: 'Ж1', tip: '1-й гарантированный жетон (каждый 240-й прогон найма). Даёт +1 потенциал всем — отсюда ступенька.' },
+    { pull: 480, label: 'Ж2', tip: '2-й гарантированный жетон (480-й прогон найма). Большинство добирает до E5 именно тут — главный пик.' },
+    { pull: 720, label: 'Ж3', tip: '3-й гарантированный жетон (720-й прогон найма). Сюда доходят самые невезучие.' },
+    { pull: 960, label: 'Ж4', tip: '4-й гарантированный жетон (960-й прогон найма).' },
   ].filter(e => e.pull <= maxPull);
 
-  // позиция пулла в % ширины (центр соответствующей колонки)
+  // позиция прогона найма в % ширины (центр соответствующей колонки)
   const posPct = pull => ((Math.floor(pull / bucket) + 0.5) / nCols) * 100;
   // маркеры снизу (на колонке, содержащей событие)
   events.forEach(e => {
     const m = document.createElement('div');
     m.className = 'hm';
     m.style.left = posPct(e.pull) + '%';
-    m.dataset.tip = `${e.label} · ${e.pull} пуллов — ${e.tip}`;
+    m.dataset.tip = `${e.label} · ${e.pull} прогонов найма — ${e.tip}`;
     m.innerHTML = `<span class="hm-dot"></span><span class="hm-label">${e.label}</span>`;
     markersEl.appendChild(m);
   });
