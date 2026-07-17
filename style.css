@@ -102,6 +102,10 @@ body{
 }
 .sb-logo{padding:0 22px 26px}
 .sb-logo-sub{font-family:var(--mono);font-size:8px;letter-spacing:.4em;color:var(--gray)}
+/* расшифровка «мы не оф. сайт»: HS = Headhunt Simulator */
+.sb-logo-hs,.pl-logo-hs,.auth-logo-hs{font-family:var(--mono);font-size:8px;letter-spacing:.18em;
+  color:var(--yellow-d);margin-top:5px}
+.pl-logo-hs{font-size:11px;letter-spacing:.24em;margin-top:8px;margin-left:4px;color:var(--yellow)}
 .sb-logo-main{font-weight:900;font-size:26px;line-height:.9;letter-spacing:-.03em;position:relative;display:inline-block}
 .sb-logo-box{display:inline-block;width:18px;height:14px;background:var(--ink);margin-left:5px}
 .sb-nav{display:flex;flex-direction:column;gap:2px;padding:0 12px}
@@ -112,6 +116,139 @@ body{
 .sb-item.active{background:var(--yellow);color:#161616;font-weight:700}
 .sb-item.active .sb-ic{color:#161616}
 .sb-bottom{margin-top:auto;padding:0 18px}
+
+/* ── АККАУНТ: кнопка в сайдбаре ── */
+.acct-box{border-top:1px solid var(--line);padding-top:14px;margin-bottom:14px}
+.acct-signed-in{display:none}
+.acct-box.signed-in .acct-signed-in{display:flex}
+.acct-box.signed-in .acct-open{display:none}
+
+.acct-signed-in{align-items:center;justify-content:space-between;gap:8px}
+.acct-email{font-family:var(--mono);font-size:11px;color:var(--ink2);overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.acct-signout{flex-shrink:0;border:1px solid var(--line);background:var(--surface-2);color:var(--ink2);
+  font-family:var(--mono);font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer;transition:.12s}
+.acct-signout:hover{background:#ff4d4d;border-color:#ff4d4d;color:#fff}
+
+.acct-open{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--ink2);
+  font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;
+  padding:11px;border-radius:6px;cursor:pointer;transition:.16s}
+.acct-open-ic{color:var(--yellow);font-size:12px;transition:.16s}
+.acct-open:hover{border-color:var(--yellow);color:var(--ink);background:var(--surface)}
+
+/* ── АККАУНТ: модальная карточка ──
+   Свой оверлей (НЕ глобальный .hidden — тот display:none!important и убивает анимации):
+   показ управляется классом .open, поэтому затемнение и карточка анимируются по-настоящему. */
+.auth-overlay{position:fixed;inset:0;z-index:210;display:flex;align-items:center;justify-content:center;
+  padding:24px;background:rgba(8,8,8,0);backdrop-filter:blur(0px);
+  visibility:hidden;transition:background .32s ease,backdrop-filter .32s ease,visibility 0s linear .32s}
+.auth-overlay.open{visibility:visible;background:rgba(8,8,8,.78);backdrop-filter:blur(5px);
+  transition:background .32s ease,backdrop-filter .32s ease}
+
+.auth-card{position:relative;width:min(410px,calc(100vw - 40px));background:var(--surface);
+  border:1px solid var(--line);border-radius:16px;overflow:hidden;
+  box-shadow:0 30px 90px rgba(0,0,0,.55),0 0 0 1px rgba(255,255,255,.02) inset;
+  opacity:0;transform:translateY(26px) scale(.96);
+  transition:opacity .3s ease,transform .38s cubic-bezier(.2,.9,.25,1.08)}
+.auth-overlay.open .auth-card{opacity:1;transform:none}
+.auth-card.shake{animation:authShake .4s cubic-bezier(.36,.07,.19,.97)}
+@keyframes authShake{10%,90%{transform:translateX(-1px)}20%,80%{transform:translateX(2px)}
+  30%,50%,70%{transform:translateX(-4px)}40%,60%{transform:translateX(4px)}}
+
+/* жёлтая полоса сверху «прорисовывается» при открытии */
+.auth-accent{position:absolute;top:0;left:0;height:4px;width:0;background:var(--yellow);z-index:2;
+  transition:width .5s cubic-bezier(.2,.8,.2,1) .15s}
+.auth-overlay.open .auth-accent{width:100%}
+/* тонкая техно-сетка в верхней зоне карточки */
+.auth-grid{position:absolute;top:0;left:0;right:0;height:150px;pointer-events:none;opacity:.5;
+  background-image:linear-gradient(var(--line) 1px,transparent 1px),linear-gradient(90deg,var(--line) 1px,transparent 1px);
+  background-size:26px 26px;
+  -webkit-mask-image:linear-gradient(to bottom,rgba(0,0,0,.5),transparent);
+  mask-image:linear-gradient(to bottom,rgba(0,0,0,.5),transparent)}
+
+.auth-close{position:absolute;top:14px;right:14px;z-index:3;width:30px;height:30px;border-radius:7px;
+  border:1px solid var(--line);background:var(--surface-2);color:var(--ink2);cursor:pointer;
+  font-size:13px;transition:.15s;display:flex;align-items:center;justify-content:center}
+.auth-close:hover{background:var(--gray-bg);color:var(--ink);transform:rotate(90deg)}
+
+.auth-inner{position:relative;z-index:1;padding:34px 34px 26px;display:flex;flex-direction:column;
+  align-items:center;text-align:center}
+/* стаггер: содержимое всплывает волной после карточки */
+.auth-logo,.auth-head,.auth-form,.auth-divider,.auth-switch{opacity:0;transform:translateY(10px);
+  transition:opacity .32s ease,transform .32s ease}
+.auth-overlay.open .auth-logo{opacity:1;transform:none;transition-delay:.12s}
+.auth-overlay.open .auth-head{opacity:1;transform:none;transition-delay:.18s}
+.auth-overlay.open .auth-form{opacity:1;transform:none;transition-delay:.24s}
+.auth-overlay.open .auth-divider{opacity:1;transform:none;transition-delay:.3s}
+.auth-overlay.open .auth-switch{opacity:1;transform:none;transition-delay:.34s}
+
+.auth-logo{margin-bottom:16px}
+.auth-logo-sub{font-family:var(--mono);font-size:8px;letter-spacing:.42em;color:var(--gray);
+  margin-bottom:2px;padding-left:.42em}   /* компенсация letter-spacing, чтобы текст был по центру */
+.auth-logo-main{font-weight:900;font-size:30px;line-height:.9;letter-spacing:-.03em;display:inline-block;text-align:left}
+.auth-logo-box{display:inline-block;width:20px;height:15px;background:var(--yellow);margin-left:6px}
+
+.auth-head{margin-bottom:22px}
+.auth-title{font-weight:900;font-size:19px;letter-spacing:.02em;margin-bottom:6px}
+.auth-sub{font-family:var(--mono);font-size:10.5px;color:var(--gray)}
+
+.auth-form{display:flex;flex-direction:column;gap:13px;width:100%}
+.auth-field{display:flex;flex-direction:column;gap:6px;text-align:left}
+.auth-lbl{font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--gray);transition:color .15s}
+.auth-field:focus-within .auth-lbl{color:var(--yellow)}
+.auth-input{background:var(--gray-bg);border:1px solid var(--line);border-radius:8px;
+  padding:12px 14px;font-family:var(--mono);font-size:13.5px;color:var(--ink);outline:none;
+  transition:border-color .18s,background .18s,box-shadow .18s;width:100%}
+.auth-input:focus{border-color:var(--yellow);background:var(--surface-2);box-shadow:0 0 0 3px rgba(255,200,40,.09)}
+.auth-input::placeholder{color:var(--gray);opacity:.55}
+.auth-input.invalid{border-color:#ff6b4a;box-shadow:0 0 0 3px rgba(255,90,60,.1)}
+
+/* пароль с глазиком */
+.auth-pass-wrap{position:relative;display:block}
+.auth-pass-wrap .auth-input{padding-right:44px}
+.auth-eye{position:absolute;top:50%;right:8px;transform:translateY(-50%);width:30px;height:30px;
+  border:none;background:none;color:var(--gray);cursor:pointer;font-size:14px;border-radius:6px;
+  transition:.15s;display:flex;align-items:center;justify-content:center}
+.auth-eye:hover{color:var(--ink);background:var(--surface-2)}
+.auth-eye.on{color:var(--yellow)}
+
+/* сообщение об ошибке/успехе: схлопнуто, раскрывается плавно */
+.auth-msg{display:flex;align-items:flex-start;gap:8px;text-align:left;font-family:var(--mono);
+  font-size:11.5px;line-height:1.45;border-radius:7px;overflow:hidden;
+  max-height:0;opacity:0;padding:0 12px;margin:0;
+  transition:max-height .25s ease,opacity .25s ease,padding .25s ease,margin .25s ease}
+.auth-msg.show{max-height:80px;opacity:1;padding:10px 12px;margin:-2px 0 0}
+.auth-msg::before{flex-shrink:0;font-weight:700}
+.auth-msg.err{background:rgba(255,90,60,.09);color:#ff9a7d;border:1px solid rgba(255,90,60,.25)}
+.auth-msg.err::before{content:'✕';color:#ff6b4a}
+.auth-msg.ok{background:rgba(63,191,106,.09);color:#7dd6a0;border:1px solid rgba(63,191,106,.25)}
+.auth-msg.ok::before{content:'✓';color:#3fbf6a}
+
+/* кнопка: диагональный блик на hover + спиннер при загрузке */
+.auth-submit{position:relative;background:var(--yellow);color:#161616;border:none;font-family:var(--mono);
+  font-weight:700;font-size:13px;letter-spacing:.08em;padding:13px;border-radius:8px;cursor:pointer;
+  transition:.18s;margin-top:2px;overflow:hidden;display:flex;align-items:center;justify-content:center;min-height:46px}
+.auth-submit::after{content:'';position:absolute;top:0;left:-80%;width:50%;height:100%;
+  background:linear-gradient(105deg,transparent,rgba(255,255,255,.35),transparent);
+  transform:skewX(-20deg);transition:left .45s ease}
+.auth-submit:hover{filter:brightness(1.06);transform:translateY(-1px);box-shadow:0 6px 18px rgba(255,200,40,.25)}
+.auth-submit:hover::after{left:130%}
+.auth-submit:active{transform:none;box-shadow:none}
+.auth-submit:disabled{cursor:default;filter:grayscale(.3) brightness(.9)}
+.auth-spinner{display:none;width:16px;height:16px;border:2.5px solid rgba(22,22,22,.25);
+  border-top-color:#161616;border-radius:50%;animation:authSpin .7s linear infinite}
+@keyframes authSpin{to{transform:rotate(360deg)}}
+.auth-submit.loading .auth-submit-lbl{display:none}
+.auth-submit.loading .auth-spinner{display:block}
+
+.auth-divider{width:100%;display:flex;align-items:center;gap:12px;margin:16px 0 12px;
+  font-family:var(--mono);font-size:9px;letter-spacing:.2em;color:var(--gray)}
+.auth-divider::before,.auth-divider::after{content:'';flex:1;height:1px;background:var(--line)}
+.auth-switch{background:none;color:var(--ink2);font-family:var(--mono);font-size:11.5px;
+  cursor:pointer;padding:11px 18px;border:1px solid var(--line);border-radius:8px;transition:.16s;width:100%}
+.auth-switch:hover{border-color:var(--yellow);color:var(--ink);background:var(--surface-2)}
+
 .sb-rates{border-top:1px solid var(--line);padding-top:14px;margin-bottom:16px}
 .sb-rate{display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:4px 0;color:var(--gray)}
 .sb-rate b{color:var(--ink)}

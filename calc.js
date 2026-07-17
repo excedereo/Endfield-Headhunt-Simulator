@@ -599,6 +599,20 @@ function loadHistory() {
   try { return JSON.parse(localStorage.getItem(HISTORY_KEY) || '[]'); } catch (e) { return []; }
 }
 
+// единая точка записи истории: сохраняет локально (мгновенно, работает и офлайн) и,
+// если юзер залогинен, отправляет в облако в фоне — так UI не ждёт сетевой запрос.
+function writeHistory(hist) {
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+  if (window.Cloud && Cloud.isSignedIn) Cloud.pushHistory(hist);
+}
+// то же для одного дня, с явным удалением в облаке (upsert не умеет стирать строки)
+function deleteHistoryDay(dateKey) {
+  const hist = loadHistory().filter(h => h.date !== dateKey);
+  try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (e) {}
+  if (window.Cloud && Cloud.isSignedIn) Cloud.deleteHistoryDay(dateKey);
+  return hist;
+}
+
 // сохраняет снапшот: фиксирует состояние + записывает точку в историю по дню (перезаписывая сегодняшнюю)
 function saveSnapshot() {
   const withDonate = parseInt(localStorage.getItem('endfield_my_pulls') || '0', 10) || 0;
@@ -619,11 +633,12 @@ function saveSnapshot() {
   const cutoffKey = todayKey(Date.now() - 730 * 86400000);
   const trimmed = history.filter(h => h.date >= cutoffKey);
 
+  writeHistory(trimmed);
   try {
-    localStorage.setItem(HISTORY_KEY, JSON.stringify(trimmed));
     lastSavedSnapshot = JSON.stringify(state);
     localStorage.setItem(LAST_SAVED_KEY, lastSavedSnapshot);
   } catch (e) {}
+  if (window.Cloud && Cloud.isSignedIn) Cloud.pushState(state);
 
   // показываем месяц только что сохранённой точки
   const [y, m] = dateKey.split('-').map(Number);
@@ -893,14 +908,13 @@ function renderHistEditor() {
     const i = hist.findIndex(h => h.date === key);
     if (i >= 0) hist[i] = entry; else hist.push(entry);
     hist.sort((a, b) => a.date.localeCompare(b.date));
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (err) {}
+    writeHistory(hist);
     renderHistory(); renderHistEditor();
   });
 
   const del = document.getElementById('heDel');
   if (del) del.addEventListener('click', () => {
-    const hist = loadHistory().filter(h => h.date !== key);
-    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (err) {}
+    deleteHistoryDay(key);
     histSelected = null;
     renderHistory(); renderHistEditor();
   });
@@ -1038,6 +1052,7 @@ function initCalc() {
   buildPass();              // мини-плашка месячного пропуска
   initDonateToggle();       // секция донатов свёрнута по умолчанию
   initDayTimer();           // обратный отсчёт до смены игрового дня (12:00 МСК)
+  initAccount();            // форма входа/регистрации + облачная синхронизация
   // числовые поля — выставляем сохранённые значения
   bindNumber('inBase', 'base');
   bindNumber('inOrig', 'orig');
@@ -1045,6 +1060,176 @@ function initCalc() {
   document.getElementById('inBase').value = state.base || 0;
   document.getElementById('inOrig').value = state.orig || 0;
   document.getElementById('inOro').value = state.oro || 0;
+  recalc();
+}
+
+/* ── АККАУНТ: вход/регистрация + облачная синхронизация ──
+   Гость: всё как раньше, только localStorage. После входа — история и state подтягиваются
+   из облака. Если в облаке пусто (первый вход), а локально есть данные — заливаем их наверх,
+   чтобы не потерять то, что уже накопил как гость. */
+function openAuthModal() {
+  const ov = document.getElementById('authOverlay');
+  if (ov) { ov.classList.add('open'); setTimeout(() => document.getElementById('acctEmail').focus(), 350); }
+}
+function closeAuthModal() {
+  const ov = document.getElementById('authOverlay');
+  if (ov) ov.classList.remove('open');
+  hideAuthMsg();
+}
+
+// сообщение под полями: kind = 'err' | 'ok'
+function showAuthMsg(text, kind) {
+  const box = document.getElementById('acctError');
+  if (!box) return;
+  box.textContent = text;
+  box.className = `auth-msg show ${kind}`;
+  if (kind === 'err') {
+    const card = document.getElementById('authCard');
+    card.classList.remove('shake');
+    void card.offsetWidth;          // перезапуск CSS-анимации
+    card.classList.add('shake');
+  }
+}
+function hideAuthMsg() {
+  const box = document.getElementById('acctError');
+  if (box) box.className = 'auth-msg';
+  document.querySelectorAll('.auth-input.invalid').forEach(i => i.classList.remove('invalid'));
+}
+
+// перевод ошибок Supabase в человеческий русский
+function ruAuthError(ex) {
+  const m = (ex && ex.message || '').toLowerCase();
+  if (m.includes('invalid login credentials')) return 'Неверная почта или пароль';
+  if (m.includes('email not confirmed')) return 'Почта не подтверждена — проверь письмо во входящих (и в спаме)';
+  if (m.includes('already registered') || m.includes('already been registered')) return 'Эта почта уже зарегистрирована — попробуй войти';
+  if (m.includes('at least 6 characters')) return 'Пароль слишком короткий — минимум 6 символов';
+  if (m.includes('is invalid') && m.includes('email')) return 'Некорректный адрес почты';
+  if (m.includes('rate limit') || m.includes('too many')) return 'Слишком много попыток — подожди пару минут';
+  if (m.includes('failed to fetch') || m.includes('network')) return 'Нет соединения с сервером — проверь интернет';
+  if (m.includes('недоступен')) return 'Сервер аккаунтов недоступен — попробуй позже';
+  return ex && ex.message ? ex.message : 'Что-то пошло не так — попробуй ещё раз';
+}
+
+async function initAccount() {
+  if (!window.Cloud) return;
+  const box = document.getElementById('acctBox');
+  const overlay = document.getElementById('authOverlay');
+  if (!box || !overlay) return;
+
+  Cloud.onAuthChange(user => renderAccount(user));
+  await Cloud.whenReady();
+
+  document.getElementById('acctOpen').addEventListener('click', openAuthModal);
+  document.getElementById('authClose').addEventListener('click', closeAuthModal);
+  overlay.addEventListener('click', e => { if (e.target === overlay) closeAuthModal(); });
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape' && overlay.classList.contains('open')) closeAuthModal();
+  });
+
+  // глазик — показать/скрыть пароль
+  const passInput = document.getElementById('acctPassword');
+  document.getElementById('acctEye').addEventListener('click', function () {
+    const show = passInput.type === 'password';
+    passInput.type = show ? 'text' : 'password';
+    this.classList.toggle('on', show);
+  });
+  // сброс подсветки ошибок при новом вводе
+  ['acctEmail', 'acctPassword'].forEach(id =>
+    document.getElementById(id).addEventListener('input', hideAuthMsg));
+
+  document.getElementById('acctForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const emailEl = document.getElementById('acctEmail');
+    const email = emailEl.value.trim();
+    const pass = passInput.value;
+    const mode = box.dataset.mode || 'signin';
+    hideAuthMsg();
+
+    // локальная валидация — понятные ошибки без похода на сервер
+    if (!email) { emailEl.classList.add('invalid'); showAuthMsg('Укажи почту', 'err'); emailEl.focus(); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) {
+      emailEl.classList.add('invalid'); showAuthMsg('Похоже, в почте опечатка — проверь адрес', 'err'); emailEl.focus(); return;
+    }
+    if (!pass) { passInput.classList.add('invalid'); showAuthMsg('Введи пароль', 'err'); passInput.focus(); return; }
+    if (mode === 'signup' && pass.length < 6) {
+      passInput.classList.add('invalid'); showAuthMsg('Пароль слишком короткий — нужно хотя бы 6 символов', 'err'); passInput.focus(); return;
+    }
+
+    const btn = document.getElementById('acctSubmit');
+    btn.classList.add('loading'); btn.disabled = true;
+    try {
+      if (mode === 'signup') {
+        await Cloud.signUp(email, pass);
+        showAuthMsg('Письмо отправлено на ' + email + ' — подтверди почту и войди', 'ok');
+      } else {
+        await Cloud.signIn(email, pass);
+        closeAuthModal();
+      }
+    } catch (ex) {
+      showAuthMsg(ruAuthError(ex), 'err');
+    } finally {
+      btn.classList.remove('loading'); btn.disabled = false;
+    }
+  });
+
+  document.getElementById('acctSwitch').addEventListener('click', () => {
+    box.dataset.mode = box.dataset.mode === 'signup' ? 'signin' : 'signup';
+    hideAuthMsg();
+    renderAccount(Cloud.user);
+  });
+  document.getElementById('acctSignOut').addEventListener('click', () => Cloud.signOut());
+}
+
+let _syncedOnce = false;
+async function renderAccount(user) {
+  const box = document.getElementById('acctBox');
+  if (!box) return;
+  const mode = box.dataset.mode || 'signin';
+  box.classList.toggle('signed-in', !!user);
+
+  if (user) {
+    document.getElementById('acctEmailOut').textContent = user.email;
+    closeAuthModal();
+    if (!_syncedOnce) { _syncedOnce = true; await syncWithCloud(); }
+  } else {
+    _syncedOnce = false;
+    const signup = mode === 'signup';
+    document.getElementById('authTitle').textContent = signup ? 'РЕГИСТРАЦИЯ' : 'ВХОД В АККАУНТ';
+    document.getElementById('authSub').textContent = signup
+      ? '// данные привяжутся к аккаунту и не потеряются'
+      : '// синхронизация данных между устройствами';
+    document.getElementById('acctSubmitLbl').textContent = signup ? 'СОЗДАТЬ АККАУНТ' : 'ВОЙТИ';
+    document.getElementById('acctSwitch').textContent =
+      signup ? 'Уже есть аккаунт? Войти' : 'Нет аккаунта? Зарегистрироваться';
+  }
+}
+
+// первый вход после логина: облако — источник истины, если там что-то есть;
+// иначе (пустое облако + есть локальные данные) — заливаем локальное наверх
+async function syncWithCloud() {
+  const [cloudHist, cloudState] = await Promise.all([Cloud.pullHistory(), Cloud.pullState()]);
+
+  if (cloudHist && cloudHist.length > 0) {
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(cloudHist)); } catch (e) {}
+  } else {
+    const localHist = loadHistory();
+    if (localHist.length > 0) Cloud.pushHistory(localHist);
+  }
+
+  if (cloudState) {
+    Object.assign(state, cloudState);
+    try { localStorage.setItem(SAVE_KEY, JSON.stringify(state)); } catch (e) {}
+    // перезалить в поля ввода то, что подтянулось из облака
+    document.getElementById('inBase').value = state.base || 0;
+    document.getElementById('inOrig').value = state.orig || 0;
+    document.getElementById('inOro').value = state.oro || 0;
+    buildLoginToggles(); buildDonates(); buildPass();
+  } else {
+    Cloud.pushState(state);
+  }
+
+  histSelected = null;
+  renderHistory();
   recalc();
 }
 

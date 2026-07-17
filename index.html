@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ENDFIELD // СИМУЛЯТОР НАЙМА</title>
+<title>HS: ARKNIGHTS ENDFIELD — Headhunt Simulator</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -16,8 +16,9 @@
   <canvas id="plMap" class="pl-map"></canvas>
   <div class="pl-accent"></div>
   <div class="pl-logo">
-    <div class="pl-logo-sub">ARKNIGHTS</div>
+    <div class="pl-logo-sub">HS: ARKNIGHTS</div>
     <div class="pl-logo-main">END<br>FIELD<span class="pl-logo-box"></span></div>
+    <div class="pl-logo-hs">HEADHUNT SIMULATOR</div>
   </div>
   <div class="pl-progress">
     <div class="pl-tick"></div>
@@ -41,8 +42,9 @@
   <!-- САЙДБАР -->
   <aside class="sidebar">
     <div class="sb-logo">
-      <div class="sb-logo-sub">ARKNIGHTS</div>
+      <div class="sb-logo-sub">HS: ARKNIGHTS</div>
       <div class="sb-logo-main">END<br>FIELD<span class="sb-logo-box"></span></div>
+      <div class="sb-logo-hs">HEADHUNT SIMULATOR</div>
     </div>
     <nav class="sb-nav">
       <div class="sb-group">// СИМУЛЯТОР НАЙМА</div>
@@ -76,6 +78,14 @@
       <a class="sb-item" data-page="calc"><span class="sb-ic">◆</span><span>Сколько у меня пуллов</span></a>
     </nav>
     <div class="sb-bottom">
+      <!-- аккаунт: гость видит кнопку входа (открывает модалку), залогиненный — email и выход -->
+      <div class="acct-box" id="acctBox" data-mode="signin">
+        <div class="acct-signed-in">
+          <div class="acct-email" id="acctEmailOut"></div>
+          <button class="acct-signout" id="acctSignOut">Выйти</button>
+        </div>
+        <button class="acct-open" id="acctOpen"><span class="acct-open-ic">◆</span>ВОЙТИ В АККАУНТ</button>
+      </div>
       <div class="sb-rates">
         <div class="sb-rate"><span>6★</span><b>0.8%</b></div>
         <div class="sb-rate"><span>5★</span><b>8.0%</b></div>
@@ -91,7 +101,7 @@
     <!-- ===== СТРАНИЦА: МЕНЮ СИМУЛЯТОРА (только мобайл) ===== -->
     <div class="page hidden" id="page-simmenu">
       <div class="section-head">
-        <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+        <div class="sh-crumb">▼ // HS: ARKNIGHTS ENDFIELD</div>
         <div class="sh-en"><span class="sh-bar"></span>↘ HEADHUNTING SIM</div>
         <h2 class="sh-ru">СИМУЛЯТОР НАЙМА</h2>
       </div>
@@ -122,7 +132,7 @@
     <!-- ===== СТРАНИЦА: СИМУЛЯТОР ОРУЖИЯ (АРСЕНАЛ) ===== -->
     <div class="page hidden" id="page-weapon">
     <div class="section-head">
-      <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+      <div class="sh-crumb">▼ // HS: ARKNIGHTS ENDFIELD</div>
       <div class="sh-en"><span class="sh-bar"></span>↘ ARSENAL SUPPLY SIM</div>
       <h2 class="sh-ru"><span id="wModeTitle">ПОСТАВКА АРСЕНАЛА</span></h2>
       <button class="banner-info-link" data-banner-info="weapon">
@@ -196,7 +206,7 @@
     <!-- ===== СТРАНИЦА: СИМУЛЯТОР ===== -->
     <div class="page" id="page-sim">
     <div class="section-head">
-      <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+      <div class="sh-crumb">▼ // HS: ARKNIGHTS ENDFIELD</div>
       <div class="sh-en"><span class="sh-bar"></span>↘ HEADHUNTING SIM</div>
       <h2 class="sh-ru"><span id="modeTitle">СИМУЛЯТОР НАЙМА</span></h2>
       <button class="banner-info-link" data-banner-info="sim">
@@ -295,7 +305,7 @@
     <!-- ===== СТРАНИЦА: КАЛЬКУЛЯТОР ПУЛЛОВ ===== -->
     <div class="page hidden" id="page-calc">
       <div class="section-head">
-        <div class="sh-crumb">▼ // ARKNIGHTS: ENDFIELD</div>
+        <div class="sh-crumb">▼ // HS: ARKNIGHTS ENDFIELD</div>
         <div class="sh-en"><span class="sh-bar"></span>↘ RESOURCE CALCULATOR</div>
         <h2 class="sh-ru">СКОЛЬКО У МЕНЯ ПУЛЛОВ</h2>
         <div class="sh-tech">**RESOURCE-TO-PULL CONVERSION / SYSTEM INTERFACES<div class="sh-cells">▪▪▪▪▪▪</div><div class="sh-cmyk"></div></div>
@@ -446,6 +456,46 @@
     </div>
   </div>
 
+  <!-- модалка входа/регистрации: карточка по центру, стиль ENDFIELD -->
+  <div class="auth-overlay" id="authOverlay">
+    <div class="auth-card" id="authCard">
+      <div class="auth-accent"></div>
+      <div class="auth-grid"></div>
+      <button class="auth-close" id="authClose" title="Закрыть">✕</button>
+      <div class="auth-inner">
+        <div class="auth-logo">
+          <div class="auth-logo-sub">HS: ARKNIGHTS</div>
+          <div class="auth-logo-main">END<br>FIELD<span class="auth-logo-box"></span></div>
+        <div class="auth-logo-hs">HEADHUNT SIMULATOR</div>
+        </div>
+        <div class="auth-head">
+          <div class="auth-title" id="authTitle">ВХОД В АККАУНТ</div>
+          <div class="auth-sub" id="authSub">// синхронизация данных между устройствами</div>
+        </div>
+        <form class="auth-form" id="acctForm" novalidate>
+          <label class="auth-field">
+            <span class="auth-lbl">EMAIL</span>
+            <input type="email" id="acctEmail" class="auth-input" placeholder="you@mail.com" autocomplete="email" spellcheck="false">
+          </label>
+          <label class="auth-field">
+            <span class="auth-lbl">ПАРОЛЬ</span>
+            <span class="auth-pass-wrap">
+              <input type="password" id="acctPassword" class="auth-input" placeholder="минимум 6 символов" autocomplete="current-password">
+              <button type="button" class="auth-eye" id="acctEye" tabindex="-1" title="Показать пароль">◉</button>
+            </span>
+          </label>
+          <div class="auth-msg" id="acctError"></div>
+          <button type="submit" class="auth-submit" id="acctSubmit">
+            <span class="auth-submit-lbl" id="acctSubmitLbl">ВОЙТИ</span>
+            <span class="auth-spinner"></span>
+          </button>
+        </form>
+        <div class="auth-divider"><span>ИЛИ</span></div>
+        <button type="button" class="auth-switch" id="acctSwitch">Нет аккаунта? Зарегистрироваться</button>
+      </div>
+    </div>
+  </div>
+
   <!-- нижний бар (только мобайл) -->
   <nav class="tabbar" id="tabbar">
     <button class="tab active" data-tab="sim"><span class="tab-ic">◈</span><span>Симулятор</span></button>
@@ -454,6 +504,8 @@
   </nav>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<script src="auth.js"></script>
 <script src="topomap.js"></script>
 <script src="ui-common.js"></script>
 <script src="sim.js"></script>
