@@ -26,15 +26,26 @@ const DONATES = [
 // параметры месячного пропуска: 12 ◈ за месяц + 200 оро/день, цена помесячно
 const PASS = { price: 449, origPerMonth: 12, oroPerDay: 200, daysPerMonth: 30 };
 
-/* ── МЕСЯЧНЫЙ ПРОПУСК: живой счётчик ──
-   Пропуск ничего не «прибавляет» к введённым полям — inOro и inOrig всегда факт с экрана игры.
-   Вместо этого он ведёт ожидаемые значения обеих валют:
-     expectedOro  — растёт на 200 каждый прошедший день;
-     expectedOrig — растёт на 12 за каждый отработанный месяц (30 дней) пропуска.
-   Разница (expected − факт) = сколько игрок потратил. */
-function todayKey() {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+/* ── ИГРОВОЙ ДЕНЬ ──
+   Сутки катятся в 12:00 по Москве (МСК = UTC+3 круглый год, перевода часов нет),
+   то есть в 09:00 UTC. До этого момента идёт ещё вчерашний игровой день.
+   Считаем через UTC, чтобы часовой пояс машины не влиял на результат. */
+const DAY_ROLL_MSK_HOUR = 12;
+const MSK_UTC_OFFSET = 3;
+const ROLL_UTC_HOUR = DAY_ROLL_MSK_HOUR - MSK_UTC_OFFSET;   // 09:00 UTC
+
+// момент ближайшей смены игрового дня (Date, в реальном времени)
+function nextRollAt(from) {
+  const now = from || new Date();
+  const roll = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), ROLL_UTC_HOUR, 0, 0));
+  if (roll <= now) roll.setUTCDate(roll.getUTCDate() + 1);
+  return roll;
+}
+// ключ текущего игрового дня: до 09:00 UTC (12:00 МСК) отдаёт вчерашнюю дату
+function todayKey(from) {
+  const d = new Date(from || Date.now());
+  d.setUTCHours(d.getUTCHours() - ROLL_UTC_HOUR);   // сдвигаем начало суток на момент ролла
+  return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}-${String(d.getUTCDate()).padStart(2, '0')}`;
 }
 // сколько целых суток между двумя ключами дат (b − a)
 function daysBetween(a, b) {
@@ -594,18 +605,18 @@ function saveSnapshot() {
   const totalPulls = parseInt(localStorage.getItem('endfield_my_pulls_free') || '0', 10) || 0;
   const oro = parseInt(localStorage.getItem('endfield_my_oro') || '0', 10) || 0;
   const orig = parseInt(localStorage.getItem('endfield_my_orig') || '0', 10) || 0;
-  const today = new Date();
-  const dateKey = today.toISOString().slice(0, 10); // YYYY-MM-DD
+  const dateKey = todayKey();   // игровой день (сутки катятся в 12:00 МСК), не календарный
 
   const history = loadHistory();
   const idx = history.findIndex(h => h.date === dateKey);
-  // pulls — свои крутки (основная линия графика), pullsDon — итог вместе с донатом (верхняя линия)
-  const entry = { date: dateKey, pulls: totalPulls, pullsDon: withDonate, oro, orig };
+  // pulls — свои крутки (основная линия графика), pullsDon — итог вместе с донатом (верхняя линия),
+  // pass — был ли в этот день активен месячный пропуск
+  const entry = { date: dateKey, pulls: totalPulls, pullsDon: withDonate, oro, orig,
+                  base: state.base, pass: !!state.pass.on };
   if (idx >= 0) history[idx] = entry; else history.push(entry);
   history.sort((a, b) => a.date.localeCompare(b.date));
   // храним снапшоты за последние ~2 года (по дням, не по числу точек — график теперь месячный)
-  const cutoff = new Date(); cutoff.setDate(cutoff.getDate() - 730);
-  const cutoffKey = cutoff.toISOString().slice(0, 10);
+  const cutoffKey = todayKey(Date.now() - 730 * 86400000);
   const trimmed = history.filter(h => h.date >= cutoffKey);
 
   try {
@@ -631,6 +642,8 @@ const MONTH_NAMES = ['Январь','Февраль','Март','Апрель','
 
 // текущий показываемый месяц графика: {year, month} (month: 0-11). null → вычисляется динамически при первом рендере
 let histCursor = null;
+// выбранный день месяца (число 1..31) — под графиком открыт его редактор; null = редактор закрыт
+let histSelected = null;
 
 // самый свежий месяц, для которого есть хоть один снапшот (или текущий месяц, если истории ещё нет)
 function latestHistMonth(history) {
@@ -706,6 +719,13 @@ function renderHistory() {
 
   let segs = '', dots = '', labels = '';
 
+  // подписи дат рисуем всегда — даже для пустого месяца, чтобы было куда целиться кликом
+  const labelStep = Math.max(1, Math.ceil(nDays / 10));
+  monthPoints.forEach((p, i) => {
+    const showLabel = i === 0 || i === nDays - 1 || p.day % labelStep === 0;
+    if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === nDays - 1 ? 'end' : 'middle'}">${p.day}</text>`;
+  });
+
   if (known.length > 0) {
     // ось Y растягивается ровно между фактическими min и max месяца: нижняя точка ложится на низ
     // графика, верхняя — на верх, поэтому наклон отражает реальный разброс, а не расстояние до нуля.
@@ -720,35 +740,175 @@ function renderHistory() {
     const yAt = span === 0
       ? () => H - padBottom
       : v => H - padBottom - ((v - min) / span) * (H - padTop - padBottom);
-    known.forEach(p => { p.y = yAt(p.h.pulls); p.yDon = yAt(donOf(p.h)); });
 
-    // сегменты только между СОСЕДНИМИ известными точками (пропуски рвут линию, не соединяют её)
-    for (let i = 1; i < known.length; i++) {
-      const a = known[i - 1], b = known[i];
-      // донатная линия — отдельной графой, полупрозрачная, без точек, поверх основной
+    // Пустые дни не рвут линию: им даётся интерполированное значение между соседними известными
+    // днями (а за краями — значение ближайшего известного). Точка при этом остаётся «полой»,
+    // чтобы визуально отличать реальные снапшоты от достроенных.
+    const interp = (day, field) => {
+      let before = null, after = null;
+      for (const k of known) {
+        if (k.day <= day) before = k;
+        if (k.day >= day && !after) after = k;
+      }
+      const vOf = k => (field === 'don' ? donOf(k.h) : k.h.pulls);
+      if (before && after && before.day !== after.day) {
+        const t = (day - before.day) / (after.day - before.day);
+        return vOf(before) + (vOf(after) - vOf(before)) * t;
+      }
+      return vOf(before || after);
+    };
+
+    monthPoints.forEach(p => {
+      if (p.h) {
+        p.val = p.h.pulls; p.valDon = donOf(p.h);
+      } else {
+        p.val = interp(p.day, 'pulls'); p.valDon = interp(p.day, 'don');
+      }
+      p.y = yAt(p.val); p.yDon = yAt(p.valDon);
+    });
+
+    // сегменты — сплошная линия по всем дням месяца, цвет по приросту относительно предыдущего дня
+    for (let i = 1; i < monthPoints.length; i++) {
+      const a = monthPoints[i - 1], b = monthPoints[i];
       if (hasDon) {
         segs += `<line class="hist-seg hist-seg-don" x1="${a.x}" y1="${a.yDon}" x2="${b.x}" y2="${b.yDon}"></line>`;
       }
-      const diff = b.h.pulls - a.h.pulls;
+      const diff = b.val - a.val;
       const cls = diff > 0 ? 'hist-seg-up' : diff < 0 ? 'hist-seg-down' : 'hist-seg-flat';
       segs += `<line class="hist-seg ${cls}" x1="${a.x}" y1="${a.y}" x2="${b.x}" y2="${b.y}"></line>`;
     }
 
-    known.forEach((p, i) => {
-      const prev = i > 0 ? known[i - 1].h : null;
-      dots += `<circle class="hist-dot" cx="${p.x}" cy="${p.y}" r="4" data-tip='${histTipHtml(p.h, prev)}'></circle>`;
-    });
-    // подписи дат: прореживаем по всем дням месяца, чтобы не наезжали друг на друга
-    const labelStep = Math.max(1, Math.ceil(nDays / 10));
+    // точки на КАЖДЫЙ день: заполненные — реальные снапшоты, полые — достроенные (значений нет)
     monthPoints.forEach((p, i) => {
-      const showLabel = i === 0 || i === nDays - 1 || p.day % labelStep === 0;
-      if (showLabel) labels += `<text class="hist-label" x="${p.x}" y="${H - 14}" text-anchor="${i === 0 ? 'start' : i === nDays - 1 ? 'end' : 'middle'}">${p.day}</text>`;
+      const prevKnown = known.filter(k => k.day < p.day).pop();
+      const cls = p.h ? 'hist-dot' : 'hist-dot hist-dot-empty';
+      const sel = (histSelected === p.day) ? ' hist-dot-sel' : '';
+      const tip = p.h ? histTipHtml(p.h, prevKnown ? prevKnown.h : null)
+                      : `<div class="ht-date">${String(p.day).padStart(2,'0')}.${String(histCursor.month+1).padStart(2,'0')}</div><div class="ht-row">нет данных — нажми, чтобы задать</div>`;
+      dots += `<circle class="${cls}${sel}" cx="${p.x}" cy="${p.y}" r="${p.h ? 4 : 3}" data-day="${p.day}" data-tip='${tip.replace(/'/g, '&#39;')}'></circle>`;
+    });
+  } else {
+    // месяц вообще без снапшотов — точки по низу, чтобы можно было ткнуть и задать день
+    monthPoints.forEach(p => {
+      p.y = H - padBottom;
+      const sel = (histSelected === p.day) ? ' hist-dot-sel' : '';
+      dots += `<circle class="hist-dot hist-dot-empty${sel}" cx="${p.x}" cy="${p.y}" r="3" data-day="${p.day}" data-tip='нет данных'></circle>`;
     });
   }
 
   chart.innerHTML = `<svg viewBox="0 0 ${W} ${H}" class="hist-svg">${grid}${segs}${dots}${labels}</svg>`;
+  attachHistEdit(chart);
 
   attachHistTip(chart);
+}
+
+/* ── РЕДАКТОР ДНЯ ──
+   Клик по точке графика открывает под ним панель с ресурсами этого дня.
+   Правятся именно ресурсы (ороберил / ориджеметрий / базовые талоны / донатные пуллы),
+   а пуллы пересчитываются по тем же курсам, что и в основном калькуляторе. */
+function attachHistEdit(chart) {
+  chart.querySelectorAll('circle[data-day]').forEach(c => {
+    c.addEventListener('click', e => {
+      e.stopPropagation();
+      const day = +c.dataset.day;
+      histSelected = (histSelected === day) ? null : day;   // повторный клик закрывает
+      renderHistory();
+      renderHistEditor();
+    });
+  });
+}
+
+// пуллы дня по его ресурсам — та же формула, что в recalc()
+function pullsOfEntry(e) {
+  const oroTotal = (e.oro || 0) + (e.orig || 0) * RATES.ORIG_TO_OROBERYL;
+  return Math.floor(oroTotal / RATES.OROBERYL_PER_PULL)
+       + Math.floor((e.base || 0) / RATES.BASE_TICKET_PER_PULL);
+}
+
+function renderHistEditor() {
+  const box = document.getElementById('histEdit');
+  if (!box) return;
+  if (histSelected == null) { box.classList.remove('open'); box.innerHTML = ''; return; }
+
+  const key = dateKeyOf(histCursor.year, histCursor.month, histSelected);
+  const history = loadHistory();
+  const e = history.find(h => h.date === key) || null;
+  const v = f => (e && e[f] != null ? e[f] : 0);
+  const donPulls = e ? Math.max(0, (e.pullsDon != null ? e.pullsDon : e.pulls) - e.pulls) : 0;
+
+  box.classList.add('open');
+  box.innerHTML = `
+    <div class="he-head">
+      <div class="he-date">// ${String(histSelected).padStart(2,'0')} ${MONTH_NAMES[histCursor.month]} ${histCursor.year}</div>
+      <div class="he-actions">
+        ${e ? '<button class="he-del" id="heDel">Удалить день</button>' : ''}
+        <button class="he-close" id="heClose">✕</button>
+      </div>
+    </div>
+    <div class="he-grid">
+      <div class="he-f"><label><img src="icons/88px-Oroberyl_icon.png" class="df-ic">ОРОБЕРИЛ</label>
+        <input type="number" id="heOro" min="0" value="${v('oro')}" class="calc-num wide"></div>
+      <div class="he-f"><label><img src="icons/88px-Origeometry_icon.png" class="df-ic">ОРИДЖЕМЕТРИЙ</label>
+        <input type="number" id="heOrig" min="0" value="${v('orig')}" class="calc-num wide"></div>
+      <div class="he-f"><label><img src="icons/88px-Bond_Quota_icon.png" class="df-ic">БАЗОВЫЕ ТАЛОНЫ</label>
+        <input type="number" id="heBase" min="0" value="${v('base')}" class="calc-num wide"></div>
+      <div class="he-f"><label>ПУЛЛОВ ЗА ДОНАТ</label>
+        <input type="number" id="heDon" min="0" value="${donPulls}" class="calc-num wide"></div>
+    </div>
+    <div class="he-foot">
+      <label class="toggle he-pass${e && e.pass ? ' on' : ''}" id="hePassTg">
+        <input type="checkbox" id="hePass" ${e && e.pass ? 'checked' : ''}>
+        <span class="tg-box"></span><span class="tg-lbl">ПРОПУСК АКТИВЕН</span>
+      </label>
+      <div class="he-out">= <b id="hePulls">0</b> пуллов<span id="heDonOut"></span></div>
+      <button class="he-save" id="heSave">СОХРАНИТЬ ДЕНЬ</button>
+    </div>`;
+
+  const read = () => ({
+    oro: Math.max(0, parseInt(document.getElementById('heOro').value, 10) || 0),
+    orig: Math.max(0, parseInt(document.getElementById('heOrig').value, 10) || 0),
+    base: Math.max(0, parseInt(document.getElementById('heBase').value, 10) || 0),
+    don: Math.max(0, parseInt(document.getElementById('heDon').value, 10) || 0),
+    pass: document.getElementById('hePass').checked,
+  });
+  // живой пересчёт пуллов при вводе
+  const preview = () => {
+    const r = read();
+    const pulls = pullsOfEntry(r);
+    document.getElementById('hePulls').textContent = pulls.toLocaleString('ru');
+    document.getElementById('heDonOut').textContent = r.don > 0 ? ` · ${(pulls + r.don).toLocaleString('ru')} с донатом` : '';
+    document.getElementById('hePassTg').classList.toggle('on', r.pass);
+  };
+  ['heOro','heOrig','heBase','heDon','hePass'].forEach(id =>
+    document.getElementById(id).addEventListener('input', preview));
+  document.getElementById('hePass').addEventListener('change', preview);
+  preview();
+
+  document.getElementById('heSave').addEventListener('click', () => {
+    const r = read();
+    const pulls = pullsOfEntry(r);
+    const hist = loadHistory();
+    const entry = { date: key, pulls, pullsDon: pulls + r.don,
+                    oro: r.oro, orig: r.orig, base: r.base, pass: r.pass };
+    const i = hist.findIndex(h => h.date === key);
+    if (i >= 0) hist[i] = entry; else hist.push(entry);
+    hist.sort((a, b) => a.date.localeCompare(b.date));
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (err) {}
+    renderHistory(); renderHistEditor();
+  });
+
+  const del = document.getElementById('heDel');
+  if (del) del.addEventListener('click', () => {
+    const hist = loadHistory().filter(h => h.date !== key);
+    try { localStorage.setItem(HISTORY_KEY, JSON.stringify(hist)); } catch (err) {}
+    histSelected = null;
+    renderHistory(); renderHistEditor();
+  });
+
+  document.getElementById('heClose').addEventListener('click', () => {
+    histSelected = null;
+    renderHistory(); renderHistEditor();
+  });
 }
 
 function shiftHistMonth(delta) {
@@ -758,7 +918,9 @@ function shiftHistMonth(delta) {
   if (month < 0) { month = 11; year--; }
   if (month > 11) { month = 0; year++; }
   histCursor = { year, month };
+  histSelected = null;      // при смене месяца редактор закрываем
   renderHistory();
+  renderHistEditor();
 }
 
 function initHistNav() {
@@ -875,6 +1037,7 @@ function initCalc() {
   buildDonates();           // читают state.donates
   buildPass();              // мини-плашка месячного пропуска
   initDonateToggle();       // секция донатов свёрнута по умолчанию
+  initDayTimer();           // обратный отсчёт до смены игрового дня (12:00 МСК)
   // числовые поля — выставляем сохранённые значения
   bindNumber('inBase', 'base');
   bindNumber('inOrig', 'orig');
@@ -883,6 +1046,30 @@ function initCalc() {
   document.getElementById('inOrig').value = state.orig || 0;
   document.getElementById('inOro').value = state.oro || 0;
   recalc();
+}
+
+/* ── ТАЙМЕР ДО СМЕНЫ ИГРОВОГО ДНЯ ──
+   Игровые сутки катятся в 12:00 МСК (см. todayKey/nextRollAt выше). Показываем обратный
+   отсчёт до этого момента; когда он истекает — догоняем пропуск и перерисовываем график,
+   т.к. «сегодня» для tickPass() и снапшотов только что сдвинулось на новый день. */
+function initDayTimer() {
+  const val = document.getElementById('dayTimerVal');
+  if (!val) return;
+  const tick = () => {
+    const ms = nextRollAt() - Date.now();
+    if (ms <= 0) {
+      tickPass();
+      renderHistory();
+      recalc();
+      return; // следующий interval-тик пересчитает уже от нового дня
+    }
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    const s = Math.floor((ms % 60000) / 1000);
+    val.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+  };
+  tick();
+  setInterval(tick, 1000);
 }
 
 // ждём пока появится #app (прелоадер уберёт hidden)

@@ -711,6 +711,11 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .hist-nav-btn:disabled{opacity:.35;cursor:default;border-color:var(--line);color:var(--ink2)}
 .hist-month{font-family:var(--mono);font-size:12px;color:var(--ink);letter-spacing:.05em;min-width:110px;text-align:center}
 .hist-empty{font-family:var(--mono);font-size:11px;color:var(--gray)}
+/* таймер до смены игрового дня (12:00 МСК) */
+.day-timer{display:flex;align-items:center;gap:8px;font-family:var(--mono);margin-left:auto;margin-right:20px}
+@media(max-width:640px){.day-timer{display:none}}
+.dt-lbl{font-size:10px;letter-spacing:.06em;color:var(--gray)}
+.dt-val{font-size:13px;font-weight:700;color:var(--six);letter-spacing:.03em;font-variant-numeric:tabular-nums}
 .hist-chart{height:220px;padding-top:8px}
 .hist-svg{width:100%;height:100%;overflow:visible}
 .hist-grid-line{stroke:var(--gray-l);stroke-width:1}
@@ -720,8 +725,41 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 .hist-seg-flat{stroke:var(--yellow)}
 /* линия «итог вместе с донатом» — отдельной графой, полупрозрачная, точек на ней нет */
 .hist-seg-don{stroke:#2f9e5a;stroke-opacity:.45;stroke-width:2}
+/* полые точки — дни без снапшота (значение достроено интерполяцией) */
+.hist-dot-empty{fill:var(--bg);stroke:var(--gray);stroke-width:1.5;opacity:.5}
+.hist-dot-empty:hover{opacity:1;stroke:var(--yellow)}
+/* выбранный день */
+.hist-dot-sel{stroke:var(--yellow);stroke-width:2.5;opacity:1}
+
+/* ── РЕДАКТОР ДНЯ (раскрывается под графиком) ── */
+.hist-edit{max-height:0;opacity:0;overflow:hidden;
+  transition:max-height .3s cubic-bezier(.2,.8,.2,1),opacity .25s ease,margin-top .3s ease}
+.hist-edit.open{max-height:340px;opacity:1;margin-top:14px}
+.hist-edit > *{margin:0}
+.he-head{display:flex;align-items:center;justify-content:space-between;
+  padding-bottom:10px;border-bottom:1px solid var(--line);margin-bottom:12px}
+.he-date{font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:.06em;color:var(--yellow)}
+.he-actions{display:flex;align-items:center;gap:8px}
+.he-del,.he-close{border:1px solid var(--line);background:var(--surface-2);color:var(--ink2);
+  font-family:var(--mono);font-size:11px;padding:5px 10px;border-radius:5px;cursor:pointer;transition:.12s}
+.he-del:hover{background:#ff4d4d;border-color:#ff4d4d;color:#fff}
+.he-close{padding:5px 9px}
+.he-close:hover{background:var(--yellow);border-color:var(--yellow);color:#161616}
+.he-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:900px){.he-grid{grid-template-columns:1fr 1fr}}
+.he-f{display:flex;flex-direction:column}
+.he-f label{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:11px;
+  letter-spacing:.06em;color:var(--ink2);margin-bottom:7px;min-height:30px}
+.he-foot{display:flex;align-items:center;gap:14px;margin-top:14px;flex-wrap:wrap}
+.he-foot .toggle{flex:0 0 auto;padding:10px 14px}
+.he-out{font-family:var(--mono);font-size:13px;color:var(--ink2);margin-left:auto}
+.he-out b{color:var(--six);font-size:17px}
+.he-out span{color:#2f9e5a}
+.he-save{background:var(--yellow);color:#161616;border:none;font-family:var(--mono);font-weight:700;
+  font-size:12px;letter-spacing:.06em;padding:11px 20px;border-radius:6px;cursor:pointer;transition:.14s}
+.he-save:hover{filter:brightness(1.1)}
 .hist-dot{fill:var(--bg);stroke:var(--ink);stroke-width:1.5;cursor:pointer;
-  transition:r .15s, fill .15s}
+  transition:r .15s, fill .15s, stroke .15s, opacity .15s}
 .hist-dot:hover{fill:var(--yellow);stroke:var(--yellow);r:6}
 .hist-label{font-family:var(--mono);font-size:9px;fill:var(--gray);letter-spacing:.02em}
 

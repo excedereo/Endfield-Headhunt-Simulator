@@ -306,7 +306,12 @@
         <div class="ybanner"><span>HISTORY</span><div class="ybanner-tech">▮▯ SAVED SNAPSHOTS / BY DAY</div></div>
         <div class="panel-body">
           <div class="hist-head">
-            <div class="hist-title">ПУЛЛЫ ПО ДНЯМ<span class="info" tabindex="0" data-info="Сколько пуллов было накоплено (по сохранённым снапшотам калькулятора) на каждый день выбранного месяца. Дни без снапшота — разрыв линии.">?</span></div>
+            <div class="hist-title">ПУЛЛЫ ПО ДНЯМ<span class="info" tabindex="0" data-info="Сколько пуллов было накоплено на каждый день месяца. Заполненные точки — сохранённые снапшоты, полые — дни без данных (значение достроено по соседям). Нажми на любую точку, чтобы задать или изменить ресурсы этого дня вручную.">?</span></div>
+            <!-- обратный отсчёт до смены игрового дня (12:00 МСК) -->
+            <div class="day-timer" id="dayTimer" title="До смены игрового дня (12:00 МСК)">
+              <span class="dt-lbl">// СЛЕДУЮЩИЙ ДЕНЬ ЧЕРЕЗ</span>
+              <span class="dt-val" id="dayTimerVal">--:--:--</span>
+            </div>
             <div class="hist-nav">
               <button class="hist-nav-btn" id="histPrev" title="Предыдущий месяц">◂</button>
               <div class="hist-month" id="histMonthLabel"></div>
@@ -315,6 +320,8 @@
             <div class="hist-empty" id="histEmpty">// нет сохранённых снапшотов</div>
           </div>
           <div class="hist-chart" id="histChart"></div>
+          <!-- редактор выбранного дня — раскрывается по клику на точку графика -->
+          <div class="hist-edit" id="histEdit"></div>
         </div>
       </div>
 
