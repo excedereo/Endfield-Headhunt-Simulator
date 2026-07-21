@@ -130,6 +130,13 @@ body{
   font-family:var(--mono);font-size:10px;padding:5px 9px;border-radius:5px;cursor:pointer;transition:.12s}
 .acct-signout:hover{background:#ff4d4d;border-color:#ff4d4d;color:#fff}
 
+/* статус синхронизации: показывается только когда есть что сказать */
+.sync-status{font-family:var(--mono);font-size:9.5px;line-height:1.35;margin-top:8px;
+  max-height:0;opacity:0;overflow:hidden;transition:max-height .25s ease,opacity .25s ease,margin .25s ease}
+.sync-status.ok,.sync-status.err{max-height:40px;opacity:1}
+.sync-status.ok{color:#3fbf6a}
+.sync-status.err{color:#ff8a5c;cursor:help}
+
 .acct-open{display:flex;align-items:center;justify-content:center;gap:9px;width:100%;
   border:1px solid var(--line);background:var(--surface-2);color:var(--ink2);
   font-family:var(--mono);font-size:11px;font-weight:700;letter-spacing:.08em;

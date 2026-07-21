@@ -30,6 +30,17 @@ const Cloud = (() => {
 
   function onAuthChange(fn) { listeners.push(fn); if (ready) fn(user); }
 
+  // ── оповещение о сбоях синхронизации ──
+  // Молчаливый console.warn однажды уже стоил двух дней потерянных данных: запросы падали
+  // с 403, а пользователь ничего не видел. Теперь любая ошибка облака поднимается в UI.
+  const syncListeners = [];
+  function onSyncError(fn) { syncListeners.push(fn); }
+  function reportSync(op, error) {
+    if (!error) { syncListeners.forEach(fn => { try { fn(null); } catch (e) {} }); return; }
+    console.warn('[cloud] ' + op, error.message);
+    syncListeners.forEach(fn => { try { fn({ op, message: error.message }); } catch (e) {} });
+  }
+
   async function signUp(email, password) {
     if (!sb) throw new Error('Supabase недоступен');
     const { error } = await sb.auth.signUp({ email, password });
@@ -49,7 +60,8 @@ const Cloud = (() => {
   async function pullHistory() {
     if (!sb || !user) return null;
     const { data, error } = await sb.from('history').select('*').eq('user_id', user.id).order('date');
-    if (error) { console.warn('[cloud] pullHistory', error.message); return null; }
+    reportSync('загрузка истории', error);
+    if (error) return null;
     return data.map(r => ({
       date: r.date, pulls: r.pulls, pullsDon: r.pulls_don, oro: r.oro, orig: r.orig,
       base: r.base, pass: r.pass,
@@ -57,35 +69,39 @@ const Cloud = (() => {
   }
   // перезаписывает всю историю юзера в облаке (используется после локальных правок)
   async function pushHistory(hist) {
-    if (!sb || !user) return;
+    if (!sb || !user) return false;
     const rows = hist.map(h => ({
       user_id: user.id, date: h.date, pulls: h.pulls || 0,
       pulls_don: h.pullsDon != null ? h.pullsDon : null,
       oro: h.oro || 0, orig: h.orig || 0, base: h.base || 0, pass: !!h.pass,
       updated_at: new Date().toISOString(),
     }));
-    if (rows.length === 0) return;
+    if (rows.length === 0) return true;
     const { error } = await sb.from('history').upsert(rows, { onConflict: 'user_id,date' });
-    if (error) console.warn('[cloud] pushHistory', error.message);
+    reportSync('сохранение истории', error);
+    return !error;
   }
   async function deleteHistoryDay(date) {
-    if (!sb || !user) return;
+    if (!sb || !user) return false;
     const { error } = await sb.from('history').delete().eq('user_id', user.id).eq('date', date);
-    if (error) console.warn('[cloud] deleteHistoryDay', error.message);
+    reportSync('удаление дня', error);
+    return !error;
   }
 
   // ── состояние калькулятора: 1 строка на юзера ──
   async function pullState() {
     if (!sb || !user) return null;
     const { data, error } = await sb.from('calc_state').select('state').eq('user_id', user.id).maybeSingle();
-    if (error) { console.warn('[cloud] pullState', error.message); return null; }
+    reportSync('загрузка настроек', error);
+    if (error) return null;
     return data ? data.state : null;
   }
   async function pushState(state) {
-    if (!sb || !user) return;
+    if (!sb || !user) return false;
     const { error } = await sb.from('calc_state')
       .upsert({ user_id: user.id, state, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-    if (error) console.warn('[cloud] pushState', error.message);
+    reportSync('сохранение настроек', error);
+    return !error;
   }
 
   return {
@@ -93,7 +109,7 @@ const Cloud = (() => {
     get isReady() { return ready; },
     get isSignedIn() { return !!user; },
     whenReady: () => initPromise,
-    onAuthChange, signUp, signIn, signOut,
+    onAuthChange, onSyncError, signUp, signIn, signOut,
     pullHistory, pushHistory, deleteHistoryDay,
     pullState, pushState,
   };

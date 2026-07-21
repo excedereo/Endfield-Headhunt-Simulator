@@ -41,3 +41,9 @@ create policy "calc_state: upsert own" on public.calc_state
   for insert with check (auth.uid() = user_id);
 create policy "calc_state: update own" on public.calc_state
   for update using (auth.uid() = user_id) with check (auth.uid() = user_id);
+
+-- КРИТИЧНО: RLS-политик недостаточно — нужны ещё базовые права на таблицы, иначе PostgREST
+-- отбивает все запросы с 403. При выключенном «Automatically expose new tables» гранты
+-- не выдаются автоматически, и без этих строк синхронизация молча не работает.
+grant select, insert, update, delete on public.history to authenticated;
+grant select, insert, update on public.calc_state to authenticated;

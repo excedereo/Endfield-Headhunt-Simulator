@@ -1117,6 +1117,15 @@ async function initAccount() {
   if (!box || !overlay) return;
 
   Cloud.onAuthChange(user => renderAccount(user));
+  // сбой синхронизации больше не молчит — сразу видно в сайдбаре
+  Cloud.onSyncError(err => {
+    const el = document.getElementById('syncStatus');
+    if (!el) return;
+    if (!err) { el.className = 'sync-status ok'; el.textContent = '// синхронизировано'; return; }
+    el.className = 'sync-status err';
+    el.textContent = '⚠ не сохранено в облако: ' + err.op;
+    el.title = err.message;
+  });
   await Cloud.whenReady();
 
   document.getElementById('acctOpen').addEventListener('click', openAuthModal);
@@ -1205,15 +1214,29 @@ async function renderAccount(user) {
 }
 
 // первый вход после логина: облако — источник истины, если там что-то есть;
-// иначе (пустое облако + есть локальные данные) — заливаем локальное наверх
+// иначе (пустое облако + есть локальные данные) — заливаем локальное наверх.
+// ВАЖНО: pullHistory() отдаёт null и при ошибке, и при пустом облаке. Раньше эти случаи
+// не различались, и при сбое связи локальные данные могли быть затёрты пустотой.
+// Теперь при любой ошибке чтения синхронизация прерывается, а локальное остаётся нетронутым.
 async function syncWithCloud() {
   const [cloudHist, cloudState] = await Promise.all([Cloud.pullHistory(), Cloud.pullState()]);
 
-  if (cloudHist && cloudHist.length > 0) {
+  if (cloudHist === null) {
+    // чтение не удалось — ничего не трогаем, работаем на локальных данных
+    const el = document.getElementById('syncStatus');
+    if (el) {
+      el.className = 'sync-status err';
+      el.textContent = '⚠ облако недоступно — данные только на этом устройстве';
+    }
+    renderHistory(); recalc();
+    return;
+  }
+
+  if (cloudHist.length > 0) {
     try { localStorage.setItem(HISTORY_KEY, JSON.stringify(cloudHist)); } catch (e) {}
   } else {
     const localHist = loadHistory();
-    if (localHist.length > 0) Cloud.pushHistory(localHist);
+    if (localHist.length > 0) await Cloud.pushHistory(localHist);
   }
 
   if (cloudState) {
@@ -1225,7 +1248,7 @@ async function syncWithCloud() {
     document.getElementById('inOro').value = state.oro || 0;
     buildLoginToggles(); buildDonates(); buildPass();
   } else {
-    Cloud.pushState(state);
+    await Cloud.pushState(state);
   }
 
   histSelected = null;
