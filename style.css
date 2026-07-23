@@ -1063,3 +1063,65 @@ input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
 ::-webkit-scrollbar{width:8px;height:8px}
 ::-webkit-scrollbar-thumb{background:var(--gray-l)}
 ::-webkit-scrollbar-thumb:hover{background:var(--gray)}
+
+/* ── ВКЛАДКА: ПОДСЧЁТ РЕСУРСОВ РАЗВИТИЯ ── */
+.mat-totals{display:grid;grid-template-columns:1fr 1fr;gap:14px 26px;align-items:start}
+@media(max-width:760px){.mat-totals{grid-template-columns:1fr}}
+.mt-card{border:1px solid var(--line);border-radius:10px;padding:18px 20px;background:var(--surface-2);
+  transition:.2s}
+.mt-card.empty{opacity:.55}
+.mt-head{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--gray);margin-bottom:8px}
+.mt-val{font-family:var(--mono);font-weight:900;font-size:42px;line-height:1;color:var(--six)}
+.mt-card.empty .mt-val{color:var(--gray)}
+.mt-lim{font-family:var(--mono);font-size:10px;color:var(--gray);margin-top:8px}
+.mat-note{font-family:var(--mono);font-size:10.5px;color:var(--yellow-d);margin-top:14px;line-height:1.5}
+.mat-note:empty{display:none}
+
+/* ── ДЕФИЦИТ ПОД КАЖДОЙ КОЛОНКОЙ ── */
+.mt-col{display:flex;flex-direction:column}
+.mt-short{margin-top:14px}
+.mts-title{font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:#ff8a5c;
+  padding:0 4px 10px;border-bottom:1px solid var(--line);margin-bottom:4px}
+.mts-title.ok{color:#3fbf6a}
+/* строка ресурса: крупная иконка, название, всего, разница */
+.mts-row{display:grid;grid-template-columns:44px 1fr auto auto;gap:12px;align-items:center;
+  padding:9px 4px;border-bottom:1px solid var(--line);transition:.14s}
+.mts-row:last-child{border-bottom:none}
+.mts-row.lack{background:rgba(255,90,60,.045)}
+.mts-ic{width:44px;height:44px;object-fit:contain}
+.mts-name{font-size:12.5px;color:var(--ink2);line-height:1.3;display:flex;flex-direction:column;gap:2px}
+/* из чего собран опыт пула — мелким под названием */
+.mts-from{font-family:var(--mono);font-size:9px;color:var(--gray);line-height:1.35}
+/* запас в единицах прокачки: «+600 (18)» */
+.mts-spare{color:var(--gray);font-weight:400;margin-left:5px;font-size:11px}
+.mts-have{font-family:var(--mono);font-size:12.5px;color:var(--ink);text-align:right;min-width:66px}
+.mts-diff{font-family:var(--mono);font-size:12.5px;font-weight:700;text-align:right;min-width:76px}
+.mts-diff.neg{color:#ff6b4a}
+.mts-diff.pos{color:#3fbf6a}
+
+/* сетка ввода материалов */
+.mat-group-title{font-family:var(--mono);font-size:11px;letter-spacing:.1em;color:var(--gray);
+  margin:22px 0 12px;display:flex;align-items:center;gap:7px}
+.mat-group-title:first-child{margin-top:0}
+.mat-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(228px,1fr));gap:10px}
+.mat-cell{display:flex;align-items:center;gap:11px;padding:9px 12px;border:1px solid var(--line);
+  border-radius:8px;background:var(--surface-2);transition:.16s}
+.mat-cell.filled{border-color:var(--yellow);background:var(--surface)}
+.mc-ic{width:40px;height:40px;object-fit:contain;flex-shrink:0}
+.mc-body{flex:1;min-width:0}
+.mc-name{font-size:11.5px;color:var(--ink2);line-height:1.25;margin-bottom:5px;
+  display:flex;flex-direction:column;gap:1px}
+.mc-exp{font-family:var(--mono);font-size:9px;color:var(--yellow-d)}
+.mc-input{width:100%;background:var(--gray-bg);border:1px solid var(--line);border-radius:5px;
+  padding:6px 9px;font-family:var(--mono);font-size:13px;font-weight:700;color:var(--ink);outline:none;transition:.14s}
+.mc-input:focus{border-color:var(--yellow);background:var(--surface-2)}
+
+/* справка по стоимости */
+.mat-ref{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:760px){.mat-ref{grid-template-columns:1fr}}
+.mr-block{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--gray-bg)}
+.mr-title{font-family:var(--mono);font-size:11px;letter-spacing:.08em;color:var(--yellow);margin-bottom:10px}
+.mr-row{display:flex;justify-content:space-between;align-items:baseline;gap:12px;padding:4px 0;
+  font-family:var(--mono);font-size:11px;color:var(--gray)}
+.mr-row b{color:var(--ink2);font-size:12px}
+.mr-src{grid-column:1/-1;font-family:var(--mono);font-size:9.5px;color:var(--gray);line-height:1.5;opacity:.8}

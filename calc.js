@@ -115,13 +115,13 @@ const FREEBIES_PULLS = 10; // максимум из входа (2+2+1=5) и та
 // page: 'sim' | 'weapon' | 'calc' | 'simmenu'
 function navTo(page) {
   if (!page) return;
-  const pages = { sim: 'page-sim', weapon: 'page-weapon', calc: 'page-calc', simmenu: 'page-simmenu' };
+  const pages = { sim: 'page-sim', weapon: 'page-weapon', calc: 'page-calc', mats: 'page-mats', simmenu: 'page-simmenu' };
   Object.entries(pages).forEach(([key, id]) => {
     const el = document.getElementById(id);
     if (el) el.classList.toggle('hidden', key !== page);
   });
   // tabbar: подсвечиваем вкладку, соответствующую текущей странице (simmenu живёт под «Симулятор»)
-  const tabForPage = { sim: 'sim', simmenu: 'sim', weapon: 'weapon', calc: 'calc' };
+  const tabForPage = { sim: 'sim', simmenu: 'sim', weapon: 'weapon', calc: 'calc', mats: 'calc' };
   const activeTab = tabForPage[page] || 'sim';
   document.querySelectorAll('.tab').forEach(t => {
     t.classList.toggle('active', t.dataset.tab === activeTab);
@@ -1053,6 +1053,7 @@ function initCalc() {
   initDonateToggle();       // секция донатов свёрнута по умолчанию
   initDayTimer();           // обратный отсчёт до смены игрового дня (12:00 МСК)
   initAccount();            // форма входа/регистрации + облачная синхронизация
+  if (typeof initMats === 'function') initMats();   // вкладка ресурсов развития
   // числовые поля — выставляем сохранённые значения
   bindNumber('inBase', 'base');
   bindNumber('inOrig', 'orig');
@@ -1249,6 +1250,12 @@ async function syncWithCloud() {
     buildLoginToggles(); buildDonates(); buildPass();
   } else {
     await Cloud.pushState(state);
+  }
+
+  // ресурсы развития живут отдельной таблицей — подтягиваем их тем же заходом
+  if (typeof syncMaterials === 'function') {
+    const changed = await syncMaterials();
+    if (changed && typeof buildMatGrids === 'function') { buildMatGrids(); renderMats(); }
   }
 
   histSelected = null;

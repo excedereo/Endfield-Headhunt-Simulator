@@ -104,6 +104,22 @@ const Cloud = (() => {
     return !error;
   }
 
+  // ── ресурсы развития: 1 строка на юзера, без истории по дням ──
+  async function pullMaterials() {
+    if (!sb || !user) return null;
+    const { data, error } = await sb.from('materials').select('items').eq('user_id', user.id).maybeSingle();
+    reportSync('загрузка ресурсов', error);
+    if (error) return null;
+    return data ? data.items : null;
+  }
+  async function pushMaterials(items) {
+    if (!sb || !user) return false;
+    const { error } = await sb.from('materials')
+      .upsert({ user_id: user.id, items, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    reportSync('сохранение ресурсов', error);
+    return !error;
+  }
+
   return {
     get user() { return user; },
     get isReady() { return ready; },
@@ -112,6 +128,7 @@ const Cloud = (() => {
     onAuthChange, onSyncError, signUp, signIn, signOut,
     pullHistory, pushHistory, deleteHistoryDay,
     pullState, pushState,
+    pullMaterials, pushMaterials,
   };
 })();
 

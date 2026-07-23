@@ -47,3 +47,22 @@ create policy "calc_state: update own" on public.calc_state
 -- не выдаются автоматически, и без этих строк синхронизация молча не работает.
 grant select, insert, update, delete on public.history to authenticated;
 grant select, insert, update on public.calc_state to authenticated;
+
+-- ресурсы развития (вкладка «Подсчёт ресурсов развития») — 1 строка на юзера,
+-- история по дням не ведётся: хранится только текущее количество каждого материала
+create table if not exists public.materials (
+  user_id    uuid primary key references auth.users(id) on delete cascade,
+  items      jsonb not null default '{}'::jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.materials enable row level security;
+
+create policy "materials: select own" on public.materials
+  for select using ((select auth.uid()) = user_id);
+create policy "materials: insert own" on public.materials
+  for insert with check ((select auth.uid()) = user_id);
+create policy "materials: update own" on public.materials
+  for update using ((select auth.uid()) = user_id) with check ((select auth.uid()) = user_id);
+
+grant select, insert, update on public.materials to authenticated;

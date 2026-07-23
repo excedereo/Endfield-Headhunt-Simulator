@@ -76,6 +76,7 @@
       </div>
       <div class="sb-group">// РЕСУРСЫ</div>
       <a class="sb-item" data-page="calc"><span class="sb-ic">◆</span><span>Сколько у меня пуллов</span></a>
+      <a class="sb-item" data-page="mats"><span class="sb-ic">▤</span><span>Подсчёт ресурсов развития</span></a>
     </nav>
     <div class="sb-bottom">
       <!-- аккаунт: гость видит кнопку входа (открывает модалку), залогиненный — email и выход -->
@@ -445,6 +446,68 @@
         <span>BASE TICKET 25:1 · AIC QUOTA · LOGIN BONUS</span>
       </div>
     </div><!-- /page-calc -->
+
+    <!-- ===== СТРАНИЦА: ПОДСЧЁТ РЕСУРСОВ РАЗВИТИЯ ===== -->
+    <div class="page hidden" id="page-mats">
+      <div class="section-head">
+        <div class="sh-crumb">▼ // HS: ARKNIGHTS ENDFIELD</div>
+        <div class="sh-en"><span class="sh-bar"></span>↘ PROGRESSION MATERIALS</div>
+        <h2 class="sh-ru">ПОДСЧЁТ РЕСУРСОВ РАЗВИТИЯ</h2>
+        <div class="sh-tech">**MATERIAL-TO-LEVEL CONVERSION / SYSTEM INTERFACES<div class="sh-cells">▪▪▪▪▪▪</div><div class="sh-cmyk"></div></div>
+      </div>
+
+      <!-- ИТОГ: на скольких хватает + дефицит прямо под каждой колонкой -->
+      <div class="panel">
+        <div class="ybanner"><span>CAPACITY</span><div class="ybanner-tech">▮▯ FULL BUILD / LV.90</div></div>
+        <div class="panel-body">
+          <div class="mat-totals">
+
+            <div class="mt-col">
+              <div class="mt-card" id="mtOp">
+                <div class="mt-head">// ОПЕРАТОРОВ ДО 90 УР.</div>
+                <div class="mt-val" id="mtOpVal">0</div>
+                <div class="mt-lim" id="mtOpLim"></div>
+              </div>
+              <div class="mt-short" id="mtOpShort"></div>
+            </div>
+
+            <div class="mt-col">
+              <div class="mt-card" id="mtWp">
+                <div class="mt-head">// ЕДИНИЦ ОРУЖИЯ ДО 90 УР.</div>
+                <div class="mt-val" id="mtWpVal">0</div>
+                <div class="mt-lim" id="mtWpLim"></div>
+              </div>
+              <div class="mt-short" id="mtWpShort"></div>
+            </div>
+
+          </div>
+          <div class="mat-note" id="matTcredNote"></div>
+        </div>
+      </div>
+
+      <!-- ВВОД РЕСУРСОВ -->
+      <div class="panel">
+        <div class="ybanner"><span>INVENTORY</span><div class="ybanner-tech">▮▯ ENTER YOUR MATERIALS</div></div>
+        <div class="panel-body">
+          <div class="mat-group-title">// ОПЕРАТОРЫ<span class="info" tabindex="0" data-info="Записи боя работают только на уровнях 1-60, когнитивные носители — только на 61-90. Это два независимых пула опыта: нехватка в одном не компенсируется избытком в другом.">?</span></div>
+          <div class="mat-grid" id="matGridOp"></div>
+          <div class="mat-group-title">// ОРУЖИЕ<span class="info" tabindex="0" data-info="Тестовые материалы дают опыт на всём диапазоне 1-90, без деления по уровням. Литейные формы нужны для настройки (повышения лимита уровня).">?</span></div>
+          <div class="mat-grid" id="matGridWeapon"></div>
+          <div class="mat-group-title">// ОБЩЕЕ</div>
+          <div class="mat-grid" id="matGridBoth"></div>
+          <div class="mat-group-title">// ПРОЧЕЕ<span class="info" tabindex="0" data-info="Эти материалы не участвуют в расчёте прокачки до 90 уровня — они нужны для других систем развития.">?</span></div>
+          <div class="mat-grid" id="matGridOther"></div>
+        </div>
+      </div>
+
+      <!-- СПРАВКА ПО СТОИМОСТИ -->
+      <div class="panel">
+        <div class="ybanner"><span>REFERENCE</span><div class="ybanner-tech">▮▯ COST PER UNIT</div></div>
+        <div class="panel-body">
+          <div class="mat-ref" id="matRef"></div>
+        </div>
+      </div>
+    </div><!-- /page-mats -->
   </main>
 
   <!-- модалка «как устроен баннер» — общая, контент подставляется по data-banner-info -->
@@ -515,6 +578,8 @@
 <script src="app.js"></script>
 <script src="weapon-ui.js"></script>
 <script src="calc.js"></script>
+<script src="mats.js"></script>
+<script src="mats-ui.js"></script>
 <script src="devtools.js"></script>
 </body>
 </html>
