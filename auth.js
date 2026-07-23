@@ -41,6 +41,29 @@ const Cloud = (() => {
     syncListeners.forEach(fn => { try { fn({ op, message: error.message }); } catch (e) {} });
   }
 
+  /* Повтор запроса при протухшем токене.
+     Сессия живёт час, клиент обновляет её сам — но запрос, ушедший в момент обновления,
+     успевает уехать со старым токеном и получить 401. Ловим это, дожидаемся свежей
+     сессии и повторяем один раз, вместо того чтобы кричать «облако недоступно». */
+  function isAuthExpired(error) {
+    if (!error) return false;
+    const code = error.code || error.status;
+    const msg = (error.message || '').toLowerCase();
+    return code === 401 || code === 'PGRST301' ||
+           msg.includes('jwt expired') || msg.includes('invalid claim') || msg.includes('token is expired');
+  }
+  async function withRetry(fn) {
+    let res = await fn();
+    if (res.error && isAuthExpired(res.error)) {
+      const { data } = await sb.auth.refreshSession();
+      if (data && data.session) {
+        user = data.session.user;
+        res = await fn();          // второй заход уже со свежим токеном
+      }
+    }
+    return res;
+  }
+
   async function signUp(email, password) {
     if (!sb) throw new Error('Supabase недоступен');
     const { error } = await sb.auth.signUp({ email, password });
@@ -59,7 +82,7 @@ const Cloud = (() => {
   // ── история: облако как источник истины при входе, localStorage — офлайн-кэш ──
   async function pullHistory() {
     if (!sb || !user) return null;
-    const { data, error } = await sb.from('history').select('*').eq('user_id', user.id).order('date');
+    const { data, error } = await withRetry(() => sb.from('history').select('*').eq('user_id', user.id).order('date'));
     reportSync('загрузка истории', error);
     if (error) return null;
     return data.map(r => ({
@@ -77,13 +100,13 @@ const Cloud = (() => {
       updated_at: new Date().toISOString(),
     }));
     if (rows.length === 0) return true;
-    const { error } = await sb.from('history').upsert(rows, { onConflict: 'user_id,date' });
+    const { error } = await withRetry(() => sb.from('history').upsert(rows, { onConflict: 'user_id,date' }));
     reportSync('сохранение истории', error);
     return !error;
   }
   async function deleteHistoryDay(date) {
     if (!sb || !user) return false;
-    const { error } = await sb.from('history').delete().eq('user_id', user.id).eq('date', date);
+    const { error } = await withRetry(() => sb.from('history').delete().eq('user_id', user.id).eq('date', date));
     reportSync('удаление дня', error);
     return !error;
   }
@@ -91,15 +114,15 @@ const Cloud = (() => {
   // ── состояние калькулятора: 1 строка на юзера ──
   async function pullState() {
     if (!sb || !user) return null;
-    const { data, error } = await sb.from('calc_state').select('state').eq('user_id', user.id).maybeSingle();
+    const { data, error } = await withRetry(() => sb.from('calc_state').select('state').eq('user_id', user.id).maybeSingle());
     reportSync('загрузка настроек', error);
     if (error) return null;
     return data ? data.state : null;
   }
   async function pushState(state) {
     if (!sb || !user) return false;
-    const { error } = await sb.from('calc_state')
-      .upsert({ user_id: user.id, state, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    const { error } = await withRetry(() => sb.from('calc_state')
+      .upsert({ user_id: user.id, state, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }));
     reportSync('сохранение настроек', error);
     return !error;
   }
@@ -107,15 +130,15 @@ const Cloud = (() => {
   // ── ресурсы развития: 1 строка на юзера, без истории по дням ──
   async function pullMaterials() {
     if (!sb || !user) return null;
-    const { data, error } = await sb.from('materials').select('items').eq('user_id', user.id).maybeSingle();
+    const { data, error } = await withRetry(() => sb.from('materials').select('items').eq('user_id', user.id).maybeSingle());
     reportSync('загрузка ресурсов', error);
     if (error) return null;
     return data ? data.items : null;
   }
   async function pushMaterials(items) {
     if (!sb || !user) return false;
-    const { error } = await sb.from('materials')
-      .upsert({ user_id: user.id, items, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
+    const { error } = await withRetry(() => sb.from('materials')
+      .upsert({ user_id: user.id, items, updated_at: new Date().toISOString() }, { onConflict: 'user_id' }));
     reportSync('сохранение ресурсов', error);
     return !error;
   }
