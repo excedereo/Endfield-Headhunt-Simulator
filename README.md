@@ -41,6 +41,7 @@ python -m http.server 8000
 
 затем открыть `http://localhost:8000`.
 
+
 ## Иконки
 
 Иконки валют — с [Endfield Talos Wiki](https://endfield.wiki.gg).
